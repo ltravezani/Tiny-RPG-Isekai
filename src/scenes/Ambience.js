@@ -3,7 +3,7 @@ import { DEPTH } from '../config.js';
 
 // Cor da luz ao longo do dia (minutos desde 0h), aplicada com MULTIPLY por cima do mundo.
 const LIGHT = [
-  [5 * 60, 0x5a64a8], [6 * 60, 0x9a90c8], [7 * 60, 0xffffff], [17 * 60, 0xffffff],
+  [5 * 60, 0x5a64a8], [6 * 60, 0xd6cdea], [7 * 60, 0xffffff], [17 * 60, 0xffffff],
   [18 * 60 + 30, 0xffcf9a], [20 * 60, 0x7b7fc0], [21 * 60, 0x5a64a8], [26 * 60, 0x5a64a8],
 ];
 const RAIN_TINT = 0xb4bccb;

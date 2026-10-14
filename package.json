@@ -7,7 +7,8 @@
     "setup:assets": "node tools/setup-assets.mjs",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "node tools/deploy.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

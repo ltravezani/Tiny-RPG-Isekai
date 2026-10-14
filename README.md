@@ -31,6 +31,17 @@ npm run dev            # http://localhost:5173
 O setup também gera cópias dos tilesets com 1px de borda repetida (`assets/generated/*_extruded.png`),
 que evitam linhas finas entre os tiles com a câmera em posição fracionária.
 
+## Publicar na web
+
+```bash
+npm run deploy
+```
+
+Gera o build em `dist/` (só com os sprites que o jogo usa, uns 3 MB) e envia para a branch
+`gh-pages`. Com o GitHub Pages apontando para essa branch, o jogo fica em
+`https://ltravezani.github.io/Tiny-RPG-Isekai/`. O build roda localmente porque o pack não está
+no repositório. O mesmo `dist/` compactado em .zip pode ser enviado ao itch.io como jogo HTML5.
+
 ## Controles
 
 WASD ou setas para andar, Shift para correr, Espaço para a ação no tile à frente

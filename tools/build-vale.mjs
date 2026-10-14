@@ -2,10 +2,15 @@
 // (o mar vira campo, a costa de penhascos é aplainada) e amplia o mapa com campos e
 // floresta em volta. Penhascos internos, rios, pontes e escadas do exemplo continuam.
 //
+// O exemplo do pack é um recorte de um mundo maior: o que encosta na borda dele
+// (casas, salas, mina, trilhos) está cortado e é removido, assim como praias e
+// penhascos que só faziam sentido com o mar.
+//
 // Uso: node tools/build-vale.mjs  (o setup:assets já chama)
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { PNG } from 'pngjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const SRC = path.join(ROOT, 'maps/vale_exemplo.json');
@@ -24,6 +29,16 @@ const SEA = new Set([264, 148, 151, 211, 212, 215, 339, 340, 341, 403, 405, 414,
 // Bordas de planalto e faces de penhasco que somem quando ficam perto do antigo mar.
 const COAST = new Set([101, 147, 149, 150, 196, 197, 198, 199, 200, 202, 203, 259, 260, 261, 262, 263, 266, 267, 268, 330, 332, 394, 396, 418, 536]);
 const KEEP_ON_SEA = new Set(['building', 'forest']);
+// Grama e bordas de grama do autotile Land; rios. O resto da camada land é "terreno especial".
+const GRASSY = new Set([66, 129, 130, 131, 132, 133, 134, 193, 194, 195, 196, 197, 198, 199, 200, 257, 258, 259, 260, 261, 262, 263, 537, 539]);
+const RIVER = new Set([470, 471, 472, 473, 474, 475, 476, 477, 478, 534, 535, 536, 538, 540, 542, 543, 544, 545]);
+const GRASS_RIM = new Set([196, 197, 198, 199, 200, 259, 260, 261, 262, 263]);
+// Areia de praia (terreno e caminhos de areia): sem mar, praia não faz sentido.
+const SAND = new Set([69, 71, 72, 73, 326, 327, 330, 482, 483, 484, 485, 486, 487, 488, 489, 546, 547, 548, 549, 550, 551, 552, 554, 555]);
+const LADDER = new Set([807, 808, 809, 810]);
+// Camadas em que um pedaço encostado na borda do exemplo (cortado) é removido inteiro.
+const CUT_LAYERS = ['building', 'walls', 'forest', 'decoration_01', 'decoration_02', 'decoration_03'];
+const MIN_OPAQUE = 24; // tiles com menos pixels visíveis que isso só atrapalham a colisão
 const DROP_LAYERS = new Set(['sea', 'clouds_01', 'clouds_02', 'cloud_shadow']);
 // Objetos que só fazem sentido na água.
 const SEA_OBJECTS = /coracle|oar|duck|swimming|reeling|caught/;
@@ -31,6 +46,43 @@ const SEA_OBJECTS = /coracle|oar|duck|swimming|reeling|caught/;
 // Gerador determinístico, para o mapa sair igual a cada setup.
 let seed = 20261014;
 const rand = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+
+// Quantos pixels visíveis cada tile tem (para tirar tiles vazios que bloqueavam a grama).
+function tileOpacity(src) {
+  const sheets = src.tilesets.map(ts => ({ ...ts, png: PNG.sync.read(fs.readFileSync(path.resolve(ROOT, 'maps', ts.image))) }));
+  const cache = new Map();
+  return gid => {
+    const id = gid & GID;
+    if (cache.has(id)) return cache.get(id);
+    const ts = [...sheets].reverse().find(t => id >= t.firstgid);
+    const local = id - ts.firstgid, sx = (local % ts.columns) * T, sy = Math.floor(local / ts.columns) * T;
+    let n = 0;
+    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) if (ts.png.data[((sy + y) * ts.png.width + sx + x) * 4 + 3]) n++;
+    cache.set(id, n);
+    return n;
+  };
+}
+
+// Componentes 8-conexos das células marcadas.
+function components(W, H, isOn) {
+  const seen = new Uint8Array(W * H), comps = [];
+  for (let i = 0; i < W * H; i++) {
+    if (seen[i] || !isOn(i)) continue;
+    const c = [i];
+    seen[i] = 1;
+    for (let q = 0; q < c.length; q++) {
+      const x = c[q] % W, y = Math.floor(c[q] / W);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy, j = ny * W + nx;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H || seen[j] || !isOn(j)) continue;
+        seen[j] = 1;
+        c.push(j);
+      }
+    }
+    comps.push(c);
+  }
+  return comps;
+}
 
 export function buildVale(src) {
   const W0 = src.width, H0 = src.height;
@@ -75,6 +127,65 @@ export function buildVale(src) {
   }
   const flattened = i => dist[i] !== 255; // mar, costa aplainada ou ilhota
 
+  // 1b. Limpeza do que ficou cortado ou sem acabamento.
+  const data = Object.fromEntries(src.layers.filter(l => l.type === 'tilelayer').map(l => [l.name, [...l.data]]));
+  const cleared = new Uint8Array(W0 * H0); // células onde algo foi removido (objetos ali também saem)
+  const onBorder = i => { const x = i % W0, y = Math.floor(i / W0); return x === 0 || y === 0 || x === W0 - 1 || y === H0 - 1; };
+  const neighbors = (i, r = 1) => {
+    const x = i % W0, y = Math.floor(i / W0), out = [];
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if ((dx || dy) && nx >= 0 && ny >= 0 && nx < W0 && ny < H0) out.push(ny * W0 + nx);
+    }
+    return out;
+  };
+  const clear = (name, cells) => { for (const i of cells) { data[name][i] = 0; cleared[i] = 1; } };
+  const opacity = tileOpacity(src);
+
+  // Tiles praticamente invisíveis em camadas que bloqueiam (sobras do autotile de prédios e da floresta).
+  for (const name of ['building', 'walls', 'forest']) {
+    data[name] = data[name].map(g => (g && opacity(g) < MIN_OPAQUE ? 0 : g));
+  }
+  // Praias e caminhos de areia.
+  for (const name of ['land', 'paths']) data[name] = data[name].map(g => (g && SAND.has(tile(g)) ? 0 : g));
+
+  // Terreno especial (penhascos, chão de mina...) que encosta na borda do exemplo ou no antigo mar.
+  const special = i => { const g = data.land[i]; return !!g && !flattened(i) && !GRASSY.has(tile(g)) && !RIVER.has(tile(g)); };
+  for (const comp of components(W0, H0, special)) {
+    const cut = comp.some(i => onBorder(i) || neighbors(i).some(flattened));
+    if (cut) clear('land', comp);
+  }
+  // Bordas de grama com contorno escuro viram grama lisa onde o penhasco ao lado sumiu.
+  for (let i = 0; i < W0 * H0; i++) {
+    const g = data.land[i];
+    if (g && GRASS_RIM.has(tile(g)) && neighbors(i).some(j => cleared[j] || flattened(j))) data.land[i] = 1 + GRASS;
+  }
+
+  // Pedaços cortados pela borda do exemplo, e prédios que estavam sobre o mar.
+  for (const name of CUT_LAYERS) {
+    for (const comp of components(W0, H0, i => !!data[name][i])) {
+      const overSea = comp.filter(flattened).length / comp.length;
+      if (comp.some(onBorder) || (name === 'building' && overSea > 0.3)) clear(name, comp);
+    }
+  }
+  // Caminhos de terra: some a faixa que encostava no antigo mar e os pedaços que sobraram soltos.
+  const nearSea = i => neighbors(i, 2).some(flattened);
+  data.paths = data.paths.map((g, i) => (g && !LADDER.has(tile(g)) && nearSea(i) ? 0 : g));
+  for (const name of ['paths', 'land']) {
+    const loose = i => !!data[name][i] && (name === 'paths' || !GRASSY.has(tile(data[name][i])));
+    for (const comp of components(W0, H0, loose)) if (comp.length < 30) clear(name, comp);
+  }
+
+  // Sombras e escadas onde não há mais penhasco.
+  const noCliff = i => !(data.land[i] && !GRASSY.has(tile(data.land[i])) && !RIVER.has(tile(data.land[i])));
+  for (let i = 0; i < W0 * H0; i++) {
+    if (data.shadows[i] && neighbors(i, 2).some(j => cleared[j] || flattened(j))) data.shadows[i] = 0;
+    for (const name of ['paths', 'decoration_01', 'decoration_02']) {
+      const g = data[name][i];
+      if (g && LADDER.has(tile(g)) && noCliff(i)) data[name][i] = 0;
+    }
+  }
+
   // 2. Copia as camadas para o mapa maior, limpando o que era mar e costa.
   const at = (x, y) => (y + PAD.top) * W + x + PAD.left;
   const layers = [];
@@ -84,21 +195,23 @@ export function buildVale(src) {
   for (const l of src.layers) {
     if (DROP_LAYERS.has(l.name)) continue;
     if (l.type === 'tilelayer') {
-      const data = new Array(W * H).fill(0);
-      l.data.forEach((g, i) => {
+      const out = new Array(W * H).fill(0);
+      data[l.name].forEach((g, i) => {
         if (!g) return;
         const x = i % W0, y = Math.floor(i / W0);
         // Em cima do antigo mar só ficam prédios e floresta; píeres, cercas e escadas soltas saem.
         if (flattened(i) && !KEEP_ON_SEA.has(l.name)) return;
-        data[at(x, y)] = g;
+        out[at(x, y)] = g;
       });
-      layers.push({ name: l.name, type: 'tilelayer', data });
+      layers.push({ name: l.name, type: 'tilelayer', data: out });
     } else {
       const objects = l.objects
         .filter(o => {
           const x = Math.floor(o.x / T), y = Math.floor(o.y / T);
-          const onSea = x >= 0 && y >= 0 && x < W0 && y < H0 && flattened(y * W0 + x);
-          return !SEA_OBJECTS.test(o.name) && !(onSea && !/bird/.test(o.name));
+          const inside = x >= 0 && y >= 0 && x < W0 && y < H0;
+          const onSea = inside && flattened(y * W0 + x);
+          const gone = inside && (cleared[y * W0 + x] || x <= 1 || y <= 1 || x >= W0 - 2 || y >= H0 - 2);
+          return !SEA_OBJECTS.test(o.name) && !gone && !(onSea && !/bird/.test(o.name));
         })
         .map(o => ({ ...o, x: o.x + PAD.left * T, y: o.y + PAD.top * T }));
       layers.push({ ...l, objects });

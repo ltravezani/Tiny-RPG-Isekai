@@ -3,24 +3,59 @@
     "id": "main_00",
     "title": "Uma semente na mão",
     "description": "Fale com a Vovó Tereza, perto da fazenda.",
-    "objective": { "event": "npc:talked", "filter": { "npcId": "tereza" }, "count": 1 },
-    "rewards": { "items": { "tool:hoe": 1, "tool:watering_can": 1 } },
-    "next": "main_01"
+    "objective": {
+      "event": "npc:talked",
+      "filter": {
+        "npcId": "tereza"
+      },
+      "count": 1
+    },
+    "rewards": {
+      "items": {
+        "tool:hoe": 1,
+        "tool:watering_can": 1
+      }
+    },
+    "next": "main_01",
+    "marker": {
+      "npc": "tereza"
+    }
   },
   {
     "id": "main_01",
     "title": "Uma semente na mão",
     "description": "Are a terra seca e plante a semente de girassol do vovô.",
-    "objective": { "event": "crop:planted", "filter": { "cropId": "sunflower" }, "count": 1 },
-    "rewards": { "items": { "seed:carrot": 6 } },
-    "next": "main_02"
+    "objective": {
+      "event": "crop:planted",
+      "filter": {
+        "cropId": "sunflower"
+      },
+      "count": 1
+    },
+    "rewards": {
+      "items": {
+        "seed:carrot": 6
+      }
+    },
+    "next": "main_02",
+    "marker": {
+      "place": "farm"
+    }
   },
   {
     "id": "main_02",
     "title": "Terra cansada",
     "description": "Regue as plantas todo dia e colha a primeira safra.",
-    "objective": { "event": "crop:harvested", "count": 1 },
-    "rewards": { "gold": 200 },
-    "next": null
+    "objective": {
+      "event": "crop:harvested",
+      "count": 1
+    },
+    "rewards": {
+      "gold": 200
+    },
+    "next": null,
+    "marker": {
+      "place": "farm"
+    }
   }
 ]

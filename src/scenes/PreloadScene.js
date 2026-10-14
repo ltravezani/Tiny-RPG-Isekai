@@ -55,7 +55,7 @@ export class PreloadScene extends Phaser.Scene {
         this.load.spritesheet(`human:${hair}:${anim}`, `${PACK}/Characters/Human/${dir}/${hair}_${suffix}.png`, { frameWidth: 96, frameHeight: 64 });
       }
     }
-    for (const e of ['expression_chat', 'expression_love', 'expression_alerted']) this.load.image(`ui:${e}`, `${PACK}/UI/${e}.png`);
+    for (const e of ['expression_chat', 'expression_love', 'expression_alerted', 'indicator', 'arrow_right', 'playercount']) this.load.image(`ui:${e}`, `${PACK}/UI/${e}.png`);
     const dust = this.cache.json.get('gmSprites').dust_run_strip8;
     this.load.spritesheet('gm:dust_run_strip8', `${GM}/dust_run_strip8.png`, { frameWidth: dust.w, frameHeight: dust.h });
 

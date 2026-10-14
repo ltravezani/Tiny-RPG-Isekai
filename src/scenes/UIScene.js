@@ -33,7 +33,7 @@ export class UIScene extends Phaser.Scene {
     this.seedIcon = this.add.image(0, 0, '__DEFAULT').setScale(ZOOM);
     this.seedText = this.add.text(0, 0, '', FONT).setLineSpacing(3);
 
-    this.hint = this.add.text(0, 0, 'WASD/setas: andar · Shift: correr · Espaço: usar · Q/E: semente · Z: dormir', {
+    this.hint = this.add.text(0, 0, 'WASD/setas: andar · Shift: correr · Espaço: usar · Q/E: semente · Z: dormir · M: mapa', {
       fontFamily: 'monospace', fontSize: '13px', color: '#ffffff', stroke: '#1b2a3a', strokeThickness: 4,
     }).setOrigin(0.5, 1);
 
@@ -49,6 +49,25 @@ export class UIScene extends Phaser.Scene {
     this.modalText = this.add.text(0, 0, '', { ...FONT, fontSize: '16px', lineSpacing: 6 }).setDepth(11);
     this.modalHint = this.add.text(0, 0, '', { ...FONT, fontSize: '13px', color: '#7a5a40' }).setOrigin(1, 1).setDepth(11);
     this.setModalVisible(false);
+
+    // Indicador da missão na tela, minimapa e mapa completo.
+    this.questMark = this.add.image(0, 0, 'ui:indicator').setScale(ZOOM).setOrigin(0.5, 1).setVisible(false);
+    this.questArrow = this.add.image(0, 0, 'ui:arrow_right').setScale(ZOOM - 1).setTint(0xffd84a).setVisible(false);
+    this.questArrowText = this.add.text(0, 0, '', { ...FONT, fontSize: '12px', color: '#ffffff', stroke: '#1b2a3a', strokeThickness: 4 }).setOrigin(0.5).setVisible(false);
+    this.miniPanel = this.makePanel();
+    this.mini = this.add.image(0, 0, 'minimap').setOrigin(0);
+    this.miniDots = this.add.graphics();
+    this.miniHint = this.add.text(0, 0, 'M: mapa', { ...FONT, fontSize: '12px' }).setOrigin(1, 0);
+
+    this.mapLayer = this.add.container(0, 0).setDepth(20).setVisible(false);
+    this.mapShade = this.add.rectangle(0, 0, 10, 10, 0x0d1620, 0.7).setOrigin(0);
+    this.mapPanel = this.makePanel();
+    this.mapImage = this.add.image(0, 0, 'minimap').setOrigin(0);
+    this.mapDots = this.add.graphics();
+    this.mapTitle = this.add.text(0, 0, 'Vale do Brotar', { ...FONT, fontSize: '18px', fontStyle: 'bold', color: '#7a3b1e' });
+    this.mapLegend = this.add.text(0, 0, '★ missão principal   ● diárias   ● aldeões   ◆ você      M: fechar', { ...FONT, fontSize: '13px' });
+    this.mapLabels = this.add.group();
+    this.mapLayer.add([this.mapShade, ...this.mapPanel, this.mapImage, this.mapDots, this.mapTitle, this.mapLegend]);
 
     events.on('ui:toast', text => this.showToast(text), this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => events.off('ui:toast', undefined, this));
@@ -79,6 +98,11 @@ export class UIScene extends Phaser.Scene {
     this.setModalVisible(true);
   }
 
+  openMap() {
+    this.modal = 'map';
+    this.mapLayer.setVisible(true);
+  }
+
   openBoard() {
     this.modal = 'board';
     this.modalTitle.setText('Quadro de Missões');
@@ -100,11 +124,13 @@ export class UIScene extends Phaser.Scene {
     this.modal = null;
     this.dialog = null;
     this.setModalVisible(false);
+    this.mapLayer.setVisible(false);
+    this.mapLabels.clear(true, true);
     onClose?.();
   }
 
   updateModal(width, height, dt) {
-    if (!this.modal) return;
+    if (!this.modal || this.modal === 'map') return;
     const w = Math.min(720, width - 40);
     const x = (width - w) / 2;
     this.modalText.setWordWrapWidth(w - PAD * 4);
@@ -127,6 +153,107 @@ export class UIScene extends Phaser.Scene {
     this.modalTitle.setPosition(x + PAD * 2, y + PAD * 2);
     this.modalText.setPosition(x + PAD * 2, y + PAD * 2 + 30);
     this.modalHint.setPosition(x + w - PAD * 2, y + h - PAD * 1.5);
+  }
+
+  // Seta na borda da tela apontando para a missão principal (ou a primeira diária);
+  // quando o lugar está na tela, um marcador balança em cima dele.
+  updateQuestIndicator(width, height, targets) {
+    const t = targets.find(x => x.kind === 'main') ?? targets[0];
+    const cam = this.village.cameras.main;
+    const show = !!t && !this.modal;
+    this.questMark.setVisible(false);
+    this.questArrow.setVisible(false);
+    this.questArrowText.setVisible(false);
+    if (!show) return;
+    const sx = (t.x - cam.worldView.x) * cam.zoom, sy = (t.y - cam.worldView.y) * cam.zoom;
+    const margin = 40;
+    if (sx > margin && sx < width - margin && sy > margin + 60 && sy < height - margin) {
+      const bob = Math.sin(this.time.now / 200) * 4;
+      this.questMark.setVisible(true).setPosition(sx, sy - 20 * cam.zoom / ZOOM - 14 + bob).setTint(t.kind === 'main' ? 0xffd84a : 0x8fd3ff);
+      return;
+    }
+    // A seta anda numa moldura que evita os painéis do topo e de baixo.
+    const top = 130, bottom = height - 150;
+    const cx = width / 2, cy = (top + bottom) / 2;
+    const ang = Math.atan2(sy - cy, sx - cx);
+    const rx = cx - margin, ry = (bottom - top) / 2;
+    const k = Math.min(Math.abs(rx / Math.cos(ang)), Math.abs(ry / Math.sin(ang)));
+    const ax = cx + Math.cos(ang) * k, ay = cy + Math.sin(ang) * k;
+    this.questArrow.setVisible(true).setPosition(ax, ay).setRotation(ang).setTint(t.kind === 'main' ? 0xffd84a : 0x8fd3ff);
+    const p = this.village.player;
+    const meters = Math.round(Phaser.Math.Distance.Between(p.x, p.y, t.x, t.y) / 16);
+    this.questArrowText.setVisible(true).setText(`${t.label} · ${meters} m`)
+      .setPosition(ax - Math.cos(ang) * 34, ay - Math.sin(ang) * 22);
+  }
+
+  // Pontos no mapa: aldeões, missões e o jogador.
+  drawMapDots(g, ox, oy, scale, targets, big) {
+    const v = this.village, T = v.grid.tileSize;
+    const toMap = (x, y) => [ox + (x / T) * scale, oy + (y / T) * scale];
+    g.clear();
+    const r = big ? 4 : 2;
+    for (const n of v.life.villagers) {
+      if (!n.visible) continue;
+      const [x, y] = toMap(n.x, n.y);
+      g.fillStyle(0x3b2a1e).fillCircle(x, y, r + 1).fillStyle(0xf2d16b).fillCircle(x, y, r);
+    }
+    const pulse = 1 + Math.abs(Math.sin(this.time.now / 250)) * 0.6;
+    for (const t of targets) {
+      const [x, y] = toMap(t.x, t.y);
+      if (t.kind === 'main') {
+        g.fillStyle(0x3b2a1e).fillCircle(x, y, (r + 3) * pulse).fillStyle(0xffd84a).fillCircle(x, y, (r + 2) * pulse);
+      } else {
+        g.fillStyle(0x1b2a3a).fillCircle(x, y, r + 1.5).fillStyle(0x8fd3ff).fillCircle(x, y, r + 0.5);
+      }
+    }
+    const [px, py] = toMap(v.player.x, v.player.y);
+    const d = r + 2;
+    g.fillStyle(0x1b2a3a).fillTriangle(px, py - d - 2, px - d - 2, py + d, px + d + 2, py + d)
+      .fillStyle(0xffffff).fillTriangle(px, py - d, px - d, py + d - 1, px + d, py + d - 1);
+  }
+
+  updateMinimap(width, height, targets) {
+    const scale = 1.4;
+    const w = this.mini.width * scale, h = this.mini.height * scale;
+    const x = width - w - PAD * 2, y = height - h - PAD * 2 - 30;
+    this.layoutPanel(this.miniPanel, x - PAD, y - PAD, w + PAD * 2, h + PAD * 2);
+    this.mini.setPosition(x, y).setScale(scale);
+    this.miniHint.setPosition(x + w, y + h + 2);
+    this.drawMapDots(this.miniDots, x, y, scale, targets, false);
+    // Área que a câmera mostra.
+    const cam = this.village.cameras.main, T = this.village.grid.tileSize;
+    this.miniDots.lineStyle(1, 0xffffff, 0.8).strokeRect(x + (cam.worldView.x / T) * scale, y + (cam.worldView.y / T) * scale, (cam.worldView.width / T) * scale, (cam.worldView.height / T) * scale);
+  }
+
+  updateMap(width, height, targets) {
+    const iw = this.mapImage.width, ih = this.mapImage.height;
+    const scale = Math.max(2, Math.floor(Math.min((width - 100) / iw, (height - 150) / ih)));
+    const w = iw * scale, h = ih * scale, x = Math.round((width - w) / 2), y = Math.round((height - h) / 2) + 14;
+    this.mapShade.setSize(width, height);
+    this.layoutPanel(this.mapPanel, x - PAD * 2, y - 46, w + PAD * 4, h + 80);
+    this.mapImage.setPosition(x, y).setScale(scale);
+    this.mapTitle.setPosition(x, y - 34);
+    this.mapLegend.setPosition(x, y + h + 8);
+    this.drawMapDots(this.mapDots, x, y, scale, targets, true);
+    // Nomes dos aldeões e das missões.
+    this.mapLabels.clear(true, true);
+    const T = this.village.grid.tileSize;
+    const label = (wx, wy, text, color) => {
+      const t = this.add.text(x + (wx / T) * scale, y + (wy / T) * scale - 10, text, { ...FONT, fontSize: '11px', color, stroke: '#1b2a3a', strokeThickness: 3 })
+        .setOrigin(0.5, 1).setDepth(21);
+      this.mapLabels.add(t);
+    };
+    const v = this.village;
+    for (const [wx, wy, name] of v.mapPlaces()) label(wx, wy, name, '#ffffff');
+    for (const n of v.life.villagers) if (n.visible) label(n.x, n.y, n.def.name, '#f2d16b');
+    // Missões: a principal em cima do ponto, as diárias embaixo, para não se sobreporem.
+    const seen = new Set();
+    for (const t of targets) {
+      const key = `${Math.round(t.x / 64)},${Math.round(t.y / 64)}`;
+      const below = t.kind !== 'main' || seen.has(key);
+      seen.add(key);
+      label(t.x, t.y + (below ? 30 * T / scale : -8), t.label, t.kind === 'main' ? '#ffd84a' : '#8fd3ff');
+    }
   }
 
   showToast(text) {
@@ -186,5 +313,9 @@ export class UIScene extends Phaser.Scene {
     this.hint.setPosition(width / 2, height - 8);
     this.toastText.setPosition(width / 2, height * 0.22);
     this.updateModal(width, height, dt);
+    const targets = v.questTargets();
+    this.updateQuestIndicator(width, height, targets);
+    this.updateMinimap(width, height, targets);
+    if (this.modal === 'map') this.updateMap(width, height, targets);
   }
 }

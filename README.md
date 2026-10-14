@@ -25,8 +25,13 @@ npm run dev            # http://localhost:5173
    em `maps/vale_exemplo.json`, que abre no Tiled para edição.
 4. Gera o Vale do Brotar do jogo, `maps/vale.json` (160x102 tiles): o mesmo vale sem o formato de
    ilhas (o mar vira campo e a costa de penhascos é aplainada), cercado de campos, bosques e mata
-   fechada nas bordas, gravetos e pedras soltos e alguns animais no pasto. O gerador é
+   fechada nas bordas, gravetos e pedras soltos e alguns animais no pasto. O que estava cortado
+   pela borda do recorte original (casas, salas, mina, trilhos), as praias e os penhascos de costa
+   são removidos, e tiles invisíveis deixam de bloquear a passagem. O gerador é
    `tools/build-vale.mjs` e é determinístico.
+
+Para revisar o mapa: `node tools/render-map.mjs mapa.png --grid` gera uma imagem do vale com os
+tiles bloqueados em vermelho, e `?grid` na URL do jogo mostra o mesmo por cima do jogo.
 
 O setup também gera cópias dos tilesets com 1px de borda repetida (`assets/generated/*_extruded.png`),
 que evitam linhas finas entre os tiles com a câmera em posição fracionária.
@@ -47,7 +52,7 @@ no repositório. O mesmo `dist/` compactado em .zip pode ser enviado ao itch.io 
 WASD ou setas para andar, Shift para correr, Espaço para a ação no tile à frente
 (conversar, fazer carinho em animais, pegar gravetos e pedras, ler o quadro, arar, plantar,
 regar, colher, vender na caixa), Q/E para trocar a semente,
-Z para dormir e salvar. No quadro de missões, 1-3 troca uma diária (uma vez por dia).
+Z para dormir e salvar, M para abrir o mapa. No quadro de missões, 1-3 troca uma diária (uma vez por dia).
 
 ## O que já existe
 
@@ -63,6 +68,8 @@ Z para dormir e salvar. No quadro de missões, 1-3 troca uma diária (uma vez po
   vagalumes à noite e poeira ao correr.
 - Quadro de Missões com 3 diárias por dia (`src/data/dailies.json`): sem tipos repetidos, pelo menos
   uma de fazenda, troca de uma por dia, bônus ao completar as 3 e baú semanal com 7 dias seguidos.
+- Minimapa no canto e mapa completo (M) com você, os aldeões e os locais das missões; na tela, uma
+  seta na borda (ou um marcador em cima do lugar) aponta para a missão principal.
 - Troca de paleta em tempo de carga (`src/systems/Palette.js`), usada no cabelo grisalho da Tereza
   e pronta para as variantes Murchas.
 - Rafa (corpo + cabelo + ferramentas do pack), andar, correr e animações de trabalho.

@@ -10,7 +10,7 @@ const PACK_DIRS = [
   'Characters/Human/DIG', 'Characters/Human/WATERING', 'Characters/Human/DOING',
   'Elements/Crops', 'UI/9slice_box_white',
 ];
-const PACK_UI = ['shovel', 'water', 'plant', 'basket', 'expression_chat', 'expression_love', 'expression_alerted'];
+const PACK_UI = ['shovel', 'water', 'plant', 'basket', 'expression_chat', 'expression_love', 'expression_alerted', 'indicator', 'arrow_right', 'playercount'];
 const EXTRA_GM = ['dust_run_strip8'];
 
 function copyGameFiles() {

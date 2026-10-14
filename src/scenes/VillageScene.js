@@ -19,6 +19,7 @@ import { FarmPlot } from '../entities/FarmPlot.js';
 import { placeQuestBoard } from '../entities/QuestBoard.js';
 import { VillageLife } from './VillageLife.js';
 import { Ambience } from './Ambience.js';
+import { buildMinimapCanvas } from '../systems/Minimap.js';
 
 // Camadas acima dos personagens (nuvens) e a camada de objetos ordenada por Y junto com eles.
 const SKY_LAYERS = new Set(['cloud_shadow', 'clouds_01']);
@@ -76,19 +77,25 @@ export class VillageScene extends Phaser.Scene {
     this.player = new Player(this, spawn.x, spawn.y, this.grid);
     this.cursor = this.add.graphics().setDepth(DEPTH.sky - 1);
     this.ambience = new Ambience(this);
+    if (new URLSearchParams(location.search).has('grid')) this.drawGridDebug();
+    if (!this.textures.exists('minimap')) this.textures.addCanvas('minimap', buildMinimapCanvas(this, mapData, this.grid));
 
     const cam = this.cameras.main;
     cam.setZoom(ZOOM).setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels).startFollow(this.player, true, 0.15, 0.15);
     cam.fadeIn(600);
 
     this.ui = this.scene.get('UI');
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,SPACE,ESC,Q,E,Z,ONE,TWO,THREE');
+    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,SPACE,ESC,Q,E,Z,M,ONE,TWO,THREE');
     // Com uma janela aberta (diálogo ou quadro), as teclas vão para ela.
     this.keys.SPACE.on('down', () => (this.ui.modal ? this.ui.advance() : this.useAction()));
     this.keys.ESC.on('down', () => this.ui.modal && this.ui.close());
     this.keys.Q.on('down', () => !this.ui.modal && this.cycleSeed(-1));
     this.keys.E.on('down', () => !this.ui.modal && this.cycleSeed(1));
     this.keys.Z.on('down', () => !this.ui.modal && this.sleep('bed'));
+    this.keys.M.on('down', () => {
+      if (this.ui.modal === 'map') this.ui.close();
+      else if (!this.ui.modal) this.ui.openMap();
+    });
     ['ONE', 'TWO', 'THREE'].forEach((k, i) => this.keys[k].on('down', () => this.rerollDaily(i)));
 
     events.on('player:passedOut', () => this.sleep('passedOut'));
@@ -163,6 +170,16 @@ export class VillageScene extends Phaser.Scene {
       }
     }
     return ysorted;
+  }
+
+  // ?grid na URL: pinta de vermelho os tiles bloqueados (ajuda a revisar o mapa).
+  drawGridDebug() {
+    const g = this.add.graphics().setDepth(DEPTH.sky + 100);
+    const T = this.grid.tileSize;
+    g.fillStyle(0xff0000, 0.35);
+    for (let y = 0; y < this.grid.height; y++) for (let x = 0; x < this.grid.width; x++) {
+      if (this.grid.isBlocked(x, y)) g.fillRect(x * T, y * T, T, T);
+    }
   }
 
   addSellBox() {
@@ -312,6 +329,58 @@ export class VillageScene extends Phaser.Scene {
     if (this.ui.modal !== 'board') return;
     if (this.quests.reroll(index, this.dailyState())) this.toast('Diária trocada. Só dá para trocar uma por dia.');
     else this.toast(this.quests.rerolled ? 'Você já trocou uma diária hoje.' : 'Essa diária não pode ser trocada.');
+  }
+
+  // Nomes de lugares no mapa (pixels do mundo).
+  mapPlaces() {
+    const T = this.grid.tileSize;
+    return [
+      [(FARM_ZONE.x + FARM_ZONE.w / 2) * T, (FARM_ZONE.y - 1) * T, 'Fazenda'],
+      [86 * T, 50 * T, 'Vale do Brotar'],
+    ];
+  }
+
+  // Onde fazer cada missão ativa, em pixels do mundo (para o mapa e a seta na tela).
+  questTargets() {
+    const T = this.grid.tileSize;
+    const tileCenter = t => ({ x: t.x * T + T / 2, y: t.y * T + T / 2 });
+    const places = {
+      farm: tileCenter({ x: FARM_ZONE.x + Math.floor(FARM_ZONE.w / 2), y: FARM_ZONE.y + Math.floor(FARM_ZONE.h / 2) }),
+      sellBox: tileCenter(SELL_BOX_TILE),
+      board: tileCenter(QUEST_BOARD_TILE),
+    };
+    const p = this.player;
+    const nearest = list => list.reduce((best, o) => (!best || Phaser.Math.Distance.Between(o.x, o.y, p.x, p.y) < Phaser.Math.Distance.Between(best.x, best.y, p.x, p.y) ? o : best), null);
+    const resolve = marker => {
+      if (!marker) return null;
+      if (marker.npc) { const v = this.life.villager(marker.npc); return v && { x: v.x, y: v.y }; }
+      if (marker.place) return places[marker.place];
+      if (marker.nearest === 'villager') return nearest(this.life.villagers.filter(v => v.visible));
+      if (marker.nearest === 'animal') return nearest(this.life.animals.map(a => a.feet));
+      if (marker.nearest === 'pickup') return nearest(this.life.pickups.filter(k => k.sprite.visible).map(k => k.sprite.getCenter()));
+      return null;
+    };
+    // Diárias não têm marcador no JSON: o lugar sai do evento que elas esperam.
+    const DAILY_MARKER = {
+      'crop:harvested': { place: 'farm' }, 'crop:planted': { place: 'farm' }, 'tile:watered': { place: 'farm' },
+      'tile:tilled': { place: 'farm' }, 'crop:sold': { place: 'sellBox' }, 'animal:petted': { nearest: 'animal' },
+      'resource:collected': { nearest: 'pickup' }, 'npc:talked': { nearest: 'villager' },
+    };
+    const targets = [];
+    const main = this.quests.current();
+    const mainPos = main && resolve(main.marker);
+    if (mainPos) targets.push({ ...mainPos, kind: 'main', label: main.title });
+    if (!this.quests.dailyAccepted) {
+      targets.push({ ...places.board, kind: 'daily', label: 'Quadro de Missões' });
+    } else {
+      for (const d of this.quests.dailies) {
+        if (d.done) continue;
+        const f = d.objective.filter?.npcId ? { npc: d.objective.filter.npcId } : DAILY_MARKER[d.objective.event];
+        const pos = resolve(f);
+        if (pos) targets.push({ ...pos, kind: 'daily', label: d.title });
+      }
+    }
+    return targets;
   }
 
   // Dados que o sorteio das diárias usa.

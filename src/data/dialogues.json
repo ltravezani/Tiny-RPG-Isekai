@@ -4,7 +4,9 @@
     "scripts": [
       {
         "id": "intro",
-        "when": { "questActive": "main_00" },
+        "when": {
+          "questActive": "main_00"
+        },
         "lines": [
           "Ora, ora... Então a deusa Maela mandou mesmo alguém. Eu sou a Tereza, a mais velha do Vale do Brotar.",
           "Essa terra está cansada, menino. A Murcha secou tudo, e quase todo mundo foi embora.",
@@ -16,7 +18,9 @@
       },
       {
         "id": "plant_hint",
-        "when": { "questActive": "main_01" },
+        "when": {
+          "questActive": "main_01"
+        },
         "lines": [
           "Fique de frente para a terra e use a enxada (Espaço). Depois é só plantar e regar.",
           "E não esqueça: planta sem água não cresce."
@@ -25,7 +29,9 @@
       },
       {
         "id": "harvest_hint",
-        "when": { "questActive": "main_02" },
+        "when": {
+          "questActive": "main_02"
+        },
         "lines": [
           "Regue todo dia e durma na hora certa. A terra trabalha enquanto você descansa.",
           "Quando a planta estiver madura, colha e ponha na caixa de vendas. O ouro vai fazer falta pra reconstruir o vale."
@@ -36,10 +42,180 @@
         "id": "default",
         "when": {},
         "random": [
-          ["Já deu uma olhada no quadro de missões hoje? Cada pedido cumprido ajuda o vale a crescer."],
-          ["Você trabalha demais, menino. Até a terra descansa no inverno."],
-          ["Meu marido dizia que a semente certa no lugar certo vale mais que ouro."],
-          ["Dizem que os goblins já foram fazendeiros como nós, antes da Murcha."]
+          [
+            "Já deu uma olhada no quadro de missões hoje? Cada pedido cumprido ajuda o vale a crescer."
+          ],
+          [
+            "Você trabalha demais, menino. Até a terra descansa no inverno."
+          ],
+          [
+            "Meu marido dizia que a semente certa no lugar certo vale mais que ouro."
+          ],
+          [
+            "Dizem que os goblins já foram fazendeiros como nós, antes da Murcha."
+          ]
+        ],
+        "emit": "npc:talked"
+      }
+    ]
+  },
+  "bruno": {
+    "name": "Bruno",
+    "scripts": [
+      {
+        "id": "first",
+        "when": {
+          "affinityMax": 0
+        },
+        "lines": [
+          "Hm. Você é o tal Semeador? Eu sou o Bruno. Ferreiro... ou era, antes da forja apagar.",
+          "Sem cobre não tem ferramenta nova. Volte quando o vale tiver como pagar."
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "friend",
+        "when": {
+          "affinityMin": 4
+        },
+        "random": [
+          [
+            "Sua enxada tá aguentando? Ferramenta boa é ferramenta cuidada."
+          ],
+          [
+            "Ontem sonhei com a forja acesa de novo. Coisa de velho."
+          ],
+          [
+            "Se achar minério de cobre por aí, traga. Eu dou um jeito."
+          ]
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "default",
+        "when": {},
+        "random": [
+          [
+            "Hm. Bom dia.",
+            "...Que foi? Tô ocupado pensando."
+          ],
+          [
+            "Os goblins levaram metade das minhas ferramentas. Ou foi a Murcha. Dá no mesmo."
+          ],
+          [
+            "Quer conversar? Converse com a Lina. Ela fala por dois."
+          ]
+        ],
+        "emit": "npc:talked"
+      }
+    ]
+  },
+  "lina": {
+    "name": "Lina",
+    "scripts": [
+      {
+        "id": "first",
+        "when": {
+          "affinityMax": 0
+        },
+        "lines": [
+          "Oi! Você é o moço que caiu do céu? Eu sou a Lina, pescadora e exploradora oficial do vale!",
+          "Conheço cada rio daqui. Um dia ainda acho o barco do meu pai, que sumiu lá pros lados da gruta."
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "friend",
+        "when": {
+          "affinityMin": 4
+        },
+        "random": [
+          [
+            "Sabia que os patos sabem quando vai chover? Fica de olho neles."
+          ],
+          [
+            "Quando a vila crescer, quero uma doca de verdade. Com barco e tudo!"
+          ]
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "default",
+        "when": {},
+        "random": [
+          [
+            "O rio tá mais cheio hoje. Bom sinal!"
+          ],
+          [
+            "Vi pegadas de goblin perto da floresta. Toma cuidado, tá?"
+          ],
+          [
+            "Se você plantar, eu pesco. Dupla perfeita pro jantar!"
+          ]
+        ],
+        "emit": "npc:talked"
+      }
+    ]
+  },
+  "clara": {
+    "name": "Irmã Clara",
+    "scripts": [
+      {
+        "id": "first",
+        "when": {
+          "affinityMax": 0
+        },
+        "lines": [
+          "Que Maela o abençoe, viajante. Sou a Irmã Clara, a última sacerdotisa do templo.",
+          "A deusa está fraca, mas sinto a força dela em você. Cuide da terra, e ela cuidará de nós."
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "default",
+        "when": {},
+        "random": [
+          [
+            "Cada semente que brota devolve um pouco da fé deste vale."
+          ],
+          [
+            "A Murcha não é natural. Alguém rompeu um selo antigo... disso tenho certeza."
+          ],
+          [
+            "Descanse quando precisar. Até Maela descansa no inverno."
+          ]
+        ],
+        "emit": "npc:talked"
+      }
+    ]
+  },
+  "dario": {
+    "name": "Dario",
+    "scripts": [
+      {
+        "id": "first",
+        "when": {
+          "affinityMax": 0
+        },
+        "lines": [
+          "Ahá, um cliente novo! Dario, mercador viajante, ao seu dispor.",
+          "Ainda não abri a banca por aqui. Quando o vale tiver um mercado, volto com coisas raras!"
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "default",
+        "when": {},
+        "random": [
+          [
+            "Abóbora vende bem no outono. Anote isso, Semeador."
+          ],
+          [
+            "Já viajei por seis cidades. Nenhuma tem um céu tão bonito quanto este."
+          ],
+          [
+            "Preço bom é preço de quem planta coisa variada. Não plante uma coisa só!"
+          ]
         ],
         "emit": "npc:talked"
       }

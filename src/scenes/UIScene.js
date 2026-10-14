@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ZOOM, MAX_ENERGY } from '../config.js';
 import { events } from '../systems/EventBus.js';
 import { SEASON_NAMES } from '../systems/TimeSystem.js';
+import { WEATHER_NAMES } from '../systems/WeatherSystem.js';
 import { ACTION_LABEL } from './VillageScene.js';
 
 const BOX = 'w_box_9slice';
@@ -71,10 +72,10 @@ export class UIScene extends Phaser.Scene {
     [...this.modalPanel, this.modalTitle, this.modalText, this.modalHint].forEach(o => o.setVisible(visible));
   }
 
-  openDialog(name, lines, onClose) {
+  openDialog(name, lines, onClose, affinity) {
     this.modal = 'dialog';
     this.dialog = { name, lines, index: 0, shown: 0, onClose };
-    this.modalTitle.setText(name);
+    this.modalTitle.setText(affinity === undefined ? name : `${name}   ${'♥'.repeat(affinity)}${'♡'.repeat(10 - affinity)}`);
     this.setModalVisible(true);
   }
 
@@ -143,7 +144,7 @@ export class UIScene extends Phaser.Scene {
     // Status: data, hora, ouro e energia.
     this.statusText.setText([
       `Dia ${clock.day} · ${SEASON_NAMES[clock.season]} · Ano ${clock.year}`,
-      `${clock.clockText()}   Ouro: ${v.inventory.gold}`,
+      `${clock.clockText()} · ${WEATHER_NAMES[v.weather.today]}   Ouro: ${v.inventory.gold}`,
       'Energia',
     ]);
     const sw = Math.max(250, this.statusText.width + PAD * 2), sh = this.statusText.height + PAD * 2 + 14;
@@ -171,7 +172,7 @@ export class UIScene extends Phaser.Scene {
     const action = v.currentTarget ? `Espaço: ${ACTION_LABEL[v.currentTarget]}` : ' ';
     this.seedText.setText([
       seed ? `${seed.name} ×${v.inventory.count(`seed:${seed.id}`)}` : 'Sem sementes',
-      `Colheitas: ${harvested}`,
+      `Colheitas: ${harvested} · Madeira: ${v.inventory.count('res:wood')} · Pedra: ${v.inventory.count('res:stone')}`,
       action,
     ]);
     this.seedIcon.setVisible(!!seed);

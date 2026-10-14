@@ -77,6 +77,27 @@ for (const name of entries.keys()) {
 writeJSON(path.join(GM_OUT, 'sprites.json'), manifest);
 console.log(`assets/generated/gm: ${Object.keys(manifest).length} sprites`);
 
+// 2b. Tilesets com borda extrudada (1px de margem, 2px entre tiles) -------
+// Evita as linhas finas entre tiles quando a câmera para em posição fracionária.
+function extrude(src, out, tile) {
+  const img = PNG.sync.read(fs.readFileSync(src));
+  const cols = img.width / tile, rows = img.height / tile;
+  const step = tile + 2;
+  const dst = new PNG({ width: cols * step, height: rows * step });
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    for (let y = -1; y <= tile; y++) for (let x = -1; x <= tile; x++) {
+      const sx = c * tile + Math.min(tile - 1, Math.max(0, x)), sy = r * tile + Math.min(tile - 1, Math.max(0, y));
+      const si = (sy * img.width + sx) * 4, di = ((r * step + 1 + y) * dst.width + c * step + 1 + x) * 4;
+      img.data.copy(dst.data, di, si, si + 4);
+    }
+  }
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, PNG.sync.write(dst));
+}
+extrude(path.join(ASSETS_DIR, 'Tileset/spr_tileset_sunnysideworld_16px.png'), path.join(ROOT, 'assets/generated/tiles16_extruded.png'), 16);
+extrude(path.join(ASSETS_DIR, 'Tileset/spr_tileset_sunnysideworld_forest_32px.png'), path.join(ROOT, 'assets/generated/forest16_extruded.png'), 16);
+console.log('assets/generated: tilesets extrudados');
+
 // 3. Sala de exemplo -> Tiled ---------------------------------------------
 const room = readYY(`${GM}rooms/Room1/Room1.yy`);
 const TILE = 16;

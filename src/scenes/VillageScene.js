@@ -3,7 +3,8 @@ import crops from '../data/crops.json';
 import quests from '../data/quests.json';
 import dailies from '../data/dailies.json';
 import dialogues from '../data/dialogues.json';
-import { ZOOM, DEPTH, FARM_ZONE, SPAWN_TILE, SELL_BOX_TILE, TEREZA_TILE, QUEST_BOARD_TILE, MAX_ENERGY, ENERGY_COST } from '../config.js';
+import villagers from '../data/villagers.json';
+import { ZOOM, DEPTH, FARM_ZONE, SPAWN_TILE, SELL_BOX_TILE, QUEST_BOARD_TILE, MAX_ENERGY, ENERGY_COST } from '../config.js';
 import { events } from '../systems/EventBus.js';
 import { buildWorldGrid } from '../systems/WorldGrid.js';
 import { TimeSystem } from '../systems/TimeSystem.js';
@@ -12,10 +13,12 @@ import { InventorySystem } from '../systems/InventorySystem.js';
 import { QuestSystem } from '../systems/QuestSystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { DialogueSystem } from '../systems/DialogueSystem.js';
+import { WeatherSystem, WEATHER_NAMES } from '../systems/WeatherSystem.js';
 import { Player } from '../entities/Player.js';
 import { FarmPlot } from '../entities/FarmPlot.js';
-import { Villager } from '../entities/Villager.js';
 import { placeQuestBoard } from '../entities/QuestBoard.js';
+import { VillageLife } from './VillageLife.js';
+import { Ambience } from './Ambience.js';
 
 // Camadas acima dos personagens (nuvens) e a camada de objetos ordenada por Y junto com eles.
 const SKY_LAYERS = new Set(['cloud_shadow', 'clouds_01']);
@@ -26,11 +29,12 @@ const KEEP_IN_FARM = /crate|barrel|chest|well/;
 
 const inFarm = (tx, ty) => tx >= FARM_ZONE.x && ty >= FARM_ZONE.y && tx < FARM_ZONE.x + FARM_ZONE.w && ty < FARM_ZONE.y + FARM_ZONE.h;
 
-const ACTION_ANIM = { till: 'dig', plant: 'doing', water: 'water', harvest: 'doing', sell: 'doing' };
+const ACTION_ANIM = { till: 'dig', plant: 'doing', water: 'water', harvest: 'doing', sell: 'doing', gather: 'doing' };
 export const ACTION_LABEL = {
   till: 'arar', plant: 'plantar', water: 'regar', harvest: 'colher', sell: 'vender colheitas',
-  talk: 'conversar', board: 'ler o quadro de missões',
+  talk: 'conversar', board: 'ler o quadro de missões', pet: 'fazer carinho', gather: 'pegar',
 };
+const MAX_AFFINITY = 10;
 // Ferramenta necessária para cada ação (a Vovó Tereza entrega na primeira conversa).
 const TOOL_FOR = { till: ['tool:hoe', 'uma enxada'], water: ['tool:watering_can', 'um regador'] };
 
@@ -42,9 +46,10 @@ export class VillageScene extends Phaser.Scene {
     const mapData = this.cache.tilemap.get('vale').data;
     this.clearFarmZone(mapData, gm);
 
-    this.buildMap(mapData, gm);
+    const mapSprites = this.buildMap(mapData, gm);
     this.grid = buildWorldGrid(mapData, gm);
-    for (const t of [SELL_BOX_TILE, TEREZA_TILE, QUEST_BOARD_TILE]) this.grid.block(t.x, t.y);
+    const tereza = villagers.find(v => v.id === 'tereza').home;
+    for (const t of [SELL_BOX_TILE, tereza, QUEST_BOARD_TILE]) this.grid.block(t.x, t.y);
 
     // Estado: carrega o save ou começa um jogo novo.
     const save = SaveSystem.load();
@@ -55,19 +60,22 @@ export class VillageScene extends Phaser.Scene {
     events.removeAllListeners();
     this.quests = new QuestSystem({ main: quests, dailies, crops }, this.inventory, save?.quests);
     if (!save) this.quests.rollDailies(this.dailyState());
-    this.dialogue = new DialogueSystem(dialogues, this.quests);
+    this.social = { affinity: {}, talkedDay: {}, ...(save?.social ?? {}) };
+    this.dialogue = new DialogueSystem(dialogues, this.quests, id => this.social.affinity[id] ?? 0);
+    this.weather = new WeatherSystem(save?.weather);
     this.selectedSeed = 0;
 
     this.farmPlot = new FarmPlot(this, this.farm, this.grid.tileSize);
     this.farmPlot.refresh();
     this.addSellBox();
-    this.tereza = new Villager(this, TEREZA_TILE.x, TEREZA_TILE.y, { id: 'tereza', hair: 'longhair_grey' });
+    this.life = new VillageLife(this, this.grid, villagers, mapSprites, save?.world);
     placeQuestBoard(this, QUEST_BOARD_TILE.x, QUEST_BOARD_TILE.y);
 
     const T = this.grid.tileSize;
     const spawn = save?.player?.pos ?? { x: SPAWN_TILE.x * T + T / 2, y: SPAWN_TILE.y * T + T / 2 };
     this.player = new Player(this, spawn.x, spawn.y, this.grid);
     this.cursor = this.add.graphics().setDepth(DEPTH.sky - 1);
+    this.ambience = new Ambience(this);
 
     const cam = this.cameras.main;
     cam.setZoom(ZOOM).setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels).startFollow(this.player, true, 0.15, 0.15);
@@ -95,6 +103,7 @@ export class VillageScene extends Phaser.Scene {
     });
 
     this.scene.launch('UI');
+    events.on('resource:collected', ({ item }) => this.inventory.add(item));
     if (!save) this.time.delayedCall(800, () => this.toast('Você acordou num campo seco, com uma semente de girassol na mão. Há uma senhora ali perto.'));
   }
 
@@ -121,9 +130,14 @@ export class VillageScene extends Phaser.Scene {
   buildMap(mapData, gm) {
     const map = this.make.tilemap({ key: 'vale' });
     this.map = map;
-    const tilesets = [map.addTilesetImage('sunnyside_16', 'tiles16'), map.addTilesetImage('sunnyside_forest', 'tilesForest')];
+    const tilesets = [
+      map.addTilesetImage('sunnyside_16', 'tiles16', 16, 16, 1, 2),
+      map.addTilesetImage('sunnyside_forest', 'tilesForest', 16, 16, 1, 2),
+    ];
 
     // Mantém a ordem do GameMaker: cada camada de objetos fica entre as camadas de tiles vizinhas.
+    // Devolve os sprites da camada principal, para a VillageLife dar vida a eles.
+    const ysorted = [];
     let depth = 0;
     for (const l of mapData.layers) {
       depth++;
@@ -143,10 +157,12 @@ export class VillageScene extends Phaser.Scene {
         if (s.frames > 1) spr.play({ key: `gm:${o.name}`, startFrame: frame });
         if (l.name !== YSORT_OBJECTS) { spr.setDepth(depth); continue; }
         // Ordena pela base do sprite (pés dos personagens 96x64 ficam na linha 39).
-        const base = o.y + ((s.h === 64 ? 39 : s.h) - s.oy) * (props.scaleY ?? 1);
-        spr.setDepth(DEPTH.ysort + base);
+        const base = ((s.h === 64 ? 39 : s.h) - s.oy) * (props.scaleY ?? 1);
+        spr.setDepth(DEPTH.ysort + o.y + base);
+        ysorted.push({ sprite: spr, name: o.name, id: o.id, base: Math.max(0, base - 4) });
       }
     }
+    return ysorted;
   }
 
   addSellBox() {
@@ -176,7 +192,12 @@ export class VillageScene extends Phaser.Scene {
   targetAction() {
     const t = this.player.targetTile();
     const is = p => t.x === p.x && t.y === p.y;
-    if (is(TEREZA_TILE)) return { tile: t, action: 'talk' };
+    // Alvo de pessoas, animais e itens: um ponto à frente dos pés, não o tile inteiro.
+    const f = this.player.facing;
+    const thing = this.life.find(this.player.x + f.x * 12, this.player.y + f.y * 12);
+    if (thing?.kind === 'villager') return { tile: t, action: 'talk', ref: thing.ref };
+    if (thing?.kind === 'animal') return { tile: t, action: 'pet', ref: thing.ref };
+    if (thing?.kind === 'pickup') return { tile: t, action: 'gather', ref: thing.ref };
     if (is(QUEST_BOARD_TILE)) return { tile: t, action: 'board' };
     if (is(SELL_BOX_TILE)) {
       return { tile: t, action: crops.some(c => this.inventory.count(`crop:${c.id}`)) ? 'sell' : null };
@@ -188,10 +209,15 @@ export class VillageScene extends Phaser.Scene {
 
   useAction() {
     if (this.player.busy || this.sleeping) return;
-    const { tile, action } = this.targetAction();
+    const { tile, action, ref } = this.targetAction();
     if (!action) return;
-    if (action === 'talk') return this.talkTo('tereza');
+    if (action === 'talk') return this.talkTo(ref);
     if (action === 'board') return this.openBoard();
+    if (action === 'pet') {
+      if (ref.pet(this.clock.day)) events.emit('animal:petted', { kind: ref.kind });
+      else this.toast(`A ${ref.name} já ganhou carinho hoje.`);
+      return;
+    }
     const tool = TOOL_FOR[action];
     if (tool && !this.inventory.count(tool[0])) {
       this.toast(`Você ainda não tem ${tool[1]}. Fale com a Vovó Tereza.`);
@@ -216,6 +242,10 @@ export class VillageScene extends Phaser.Scene {
         if (seed && this.farm.plant(tile.x, tile.y, seed.id)) this.inventory.remove(`seed:${seed.id}`);
       }
       if (action === 'sell') this.sellAll();
+      if (action === 'gather') {
+        this.life.gather(ref, this.clock.day);
+        events.emit('resource:collected', { item: ref.item, amount: 1 });
+      }
       this.farmPlot.refresh();
     });
   }
@@ -246,20 +276,30 @@ export class VillageScene extends Phaser.Scene {
       this.clock.nextDay();
       this.farm.onNewDay(this.clock.snapshot());
       this.quests.rollDailies(this.dailyState());
+      this.life.onNewDay(this.clock.day);
+      const weather = this.weather.roll(this.clock.season);
+      if (weather === 'rain') for (const t of this.farm.tiles.values()) t.watered = true; // chuva rega tudo
       this.energy = passedOut ? MAX_ENERGY / 2 : MAX_ENERGY;
       this.farmPlot.refresh();
       this.save();
       this.clock.paused = false;
       this.sleeping = false;
       cam.fadeFrom(700, 0, 0, 0, true);
-      this.toast(passedOut ? 'Você desmaiou de cansaço... e perdeu um pouco de ouro.' : `Dia ${this.clock.day}. Jogo salvo.`);
+      const forecast = weather === 'rain' ? ' Está chovendo: a fazenda já amanheceu regada.' : ` Tempo: ${WEATHER_NAMES[weather].toLowerCase()}.`;
+      this.toast((passedOut ? 'Você desmaiou de cansaço... e perdeu um pouco de ouro.' : `Dia ${this.clock.day}. Jogo salvo.`) + forecast);
     });
   }
 
-  talkTo(npcId) {
-    this.tereza.faceTowards(this.player.x);
-    const talk = this.dialogue.start(npcId);
-    this.ui.openDialog(talk.name, talk.lines, () => talk.finish());
+  // Conversar sobe a afinidade uma vez por dia (roteiro, seção 4: corações de 0 a 10).
+  talkTo(npc) {
+    npc.startTalk(this.player.x);
+    const talk = this.dialogue.start(npc.id);
+    const s = this.social;
+    if (s.talkedDay[npc.id] !== this.clock.day) {
+      s.talkedDay[npc.id] = this.clock.day;
+      s.affinity[npc.id] = Math.min(MAX_AFFINITY, (s.affinity[npc.id] ?? 0) + 1);
+    }
+    this.ui.openDialog(talk.name, talk.lines, () => { npc.endTalk(); talk.finish(); }, s.affinity[npc.id]);
   }
 
   openBoard() {
@@ -287,6 +327,9 @@ export class VillageScene extends Phaser.Scene {
       player: { ...this.inventory.snapshot(), energy: this.energy, pos: { x: this.player.x, y: this.player.y } },
       farm: this.farm.snapshot(),
       quests: this.quests.snapshot(),
+      social: this.social,
+      weather: this.weather.snapshot(),
+      world: this.life.snapshot(),
     });
   }
 
@@ -296,6 +339,12 @@ export class VillageScene extends Phaser.Scene {
 
   update(_, dt) {
     if (this.sleeping) return;
+    const hour = Math.floor(this.clock.minutes / 60) % 24;
+    this.life.update(dt, { hour, player: this.player });
+    this.ambience.update(dt, {
+      minutes: this.clock.minutes % (24 * 60), weather: this.weather.today, player: this.player,
+      running: !this.ui.modal && this.keys.SHIFT.isDown && this.player.anim === 'run',
+    });
     if (this.ui.modal) {
       this.player.move({ x: 0, y: 0 }, dt);
       return;

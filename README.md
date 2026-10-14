@@ -25,12 +25,17 @@ npm run dev            # http://localhost:5173
    em `maps/vale_exemplo.json`, que abre no Tiled para edição.
 4. Gera o Vale do Brotar do jogo, `maps/vale.json` (160x102 tiles): o mesmo vale sem o formato de
    ilhas (o mar vira campo e a costa de penhascos é aplainada), cercado de campos, bosques e mata
-   fechada nas bordas. O gerador é `tools/build-vale.mjs` e é determinístico.
+   fechada nas bordas, gravetos e pedras soltos e alguns animais no pasto. O gerador é
+   `tools/build-vale.mjs` e é determinístico.
+
+O setup também gera cópias dos tilesets com 1px de borda repetida (`assets/generated/*_extruded.png`),
+que evitam linhas finas entre os tiles com a câmera em posição fracionária.
 
 ## Controles
 
 WASD ou setas para andar, Shift para correr, Espaço para a ação no tile à frente
-(conversar, ler o quadro, arar, plantar, regar, colher, vender na caixa), Q/E para trocar a semente,
+(conversar, fazer carinho em animais, pegar gravetos e pedras, ler o quadro, arar, plantar,
+regar, colher, vender na caixa), Q/E para trocar a semente,
 Z para dormir e salvar. No quadro de missões, 1-3 troca uma diária (uma vez por dia).
 
 ## O que já existe
@@ -38,6 +43,13 @@ Z para dormir e salvar. No quadro de missões, 1-3 troca uma diária (uma vez po
 - Vale do Brotar contínuo, sem ilhas, com colisão de penhascos, água, prédios, árvores e objetos;
   pontes e escadas liberam a passagem.
 - Vovó Tereza com diálogo que muda conforme a missão; ela entrega a enxada e o regador.
+- Bruno, Lina, Irmã Clara e Dario (`src/data/villagers.json`) passeiam pela vila nos seus horários,
+  mostram um balão quando você chega perto e têm falas que mudam com a afinidade (0 a 10 corações,
+  sobe uma vez por dia conversando).
+- Galinhas, vacas, ovelhas e porcos passeiam e ganham carinho; goblins da Murcha ficam alertas
+  quando você se aproxima; gravetos e pedras no chão podem ser coletados e voltam em 3 dias.
+- Luz do dia (amanhecer, pôr do sol, noite), clima diário (sol, nublado, chuva que rega a fazenda),
+  vagalumes à noite e poeira ao correr.
 - Quadro de Missões com 3 diárias por dia (`src/data/dailies.json`): sem tipos repetidos, pelo menos
   uma de fazenda, troca de uma por dia, bônus ao completar as 3 e baú semanal com 7 dias seguidos.
 - Troca de paleta em tempo de carga (`src/systems/Palette.js`), usada no cabelo grisalho da Tereza
@@ -52,11 +64,11 @@ Z para dormir e salvar. No quadro de missões, 1-3 troca uma diária (uma vez po
 ```
 src/main.js            config do Phaser
 src/config.js          zoom, área da fazenda, custos de energia
-src/scenes/            Boot, Preload, Village, UI
+src/scenes/            Boot, Preload, Village, UI, VillageLife (NPCs e animais), Ambience (luz e clima)
 src/systems/           EventBus, TimeSystem, FarmSystem, InventorySystem, QuestSystem,
-                       DialogueSystem, SaveSystem, WorldGrid, Palette
-src/entities/          Player, Villager, FarmPlot, QuestBoard
-src/data/              crops.json, quests.json, dailies.json, dialogues.json
+                       DialogueSystem, WeatherSystem, SaveSystem, WorldGrid, Palette
+src/entities/          Player, Villager, Animal, FarmPlot, QuestBoard
+src/data/              crops.json, quests.json, dailies.json, dialogues.json, villagers.json
 tools/                 setup-assets.mjs (preparação dos assets), build-vale.mjs (mapa amplo)
 assets/sunnyside/      pack original (gerado, fora do git)
 maps/                  mapas Tiled

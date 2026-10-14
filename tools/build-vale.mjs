@@ -137,6 +137,15 @@ export function buildVale(src) {
     }
     if (rand() < 0.6) addSprite(rand() < 0.5 ? 'spr_deco_mushroom_red_01' : 'spr_deco_mushroom_blue_01', cx * T + 20, cy * T + 30);
   }
+  // Gravetos e pedras soltos para coletar no campo aberto.
+  for (let n = 0; n < 70; n++) {
+    const x = BORDER + 2 + Math.floor(rand() * (W - 2 * BORDER - 4)), y = BORDER + 2 + Math.floor(rand() * (H - 2 * BORDER - 4));
+    if (free(x, y)) addSprite(rand() < 0.6 ? 'wood' : 'rock', x * T + 3, y * T + 3);
+  }
+  // Galinhas soltas perto da fazenda e um rebanho de ovelhas no pasto ao sul.
+  for (const [name, tx, ty, count] of [['spr_deco_chicken_01', 36, 44, 4], ['spr_deco_sheep_01', 30, 62, 5], ['spr_deco_cow', 44, 70, 2]]) {
+    for (let k = 0; k < count; k++) addSprite(name, (tx + k * 2) * T + Math.floor(rand() * 8), (ty + (k % 2)) * T + 8);
+  }
 
   let id = 1;
   return {

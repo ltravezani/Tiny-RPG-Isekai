@@ -15,8 +15,11 @@ export const HUMAN_ANIMS = {
   doing: ['DOING', 'doing_strip8', 8, 16, false],
 };
 export const HUMAN_LAYERS = ['base', 'shorthair', 'tools'];
-// Penteados extras carregados só para os aldeões (animação idle).
-export const VILLAGER_HAIR = ['longhair'];
+// Penteados extras carregados só para os aldeões (parado e andando).
+export const VILLAGER_HAIR = ['longhair', 'spikeyhair', 'curlyhair', 'bowlhair', 'mophair'];
+const VILLAGER_ANIMS = ['idle', 'walk'];
+// Variantes grisalhas geradas por troca de paleta.
+const GREY_HAIR = ['longhair'];
 
 export class PreloadScene extends Phaser.Scene {
   constructor() { super('Preload'); }
@@ -27,8 +30,9 @@ export class PreloadScene extends Phaser.Scene {
     this.add.text(width / 2, height / 2 - 20, 'Raízes de Solária', { fontFamily: 'monospace', fontSize: '16px', color: '#fff' }).setOrigin(0.5);
     this.load.on('progress', p => { bar.width = 200 * p; });
 
-    this.load.image('tiles16', `${PACK}/Tileset/spr_tileset_sunnysideworld_16px.png`);
-    this.load.image('tilesForest', `${PACK}/Tileset/spr_tileset_sunnysideworld_forest_32px.png`);
+    // Versões extrudadas geradas pelo setup:assets (mesmo layout, com 1px de borda repetida).
+    this.load.image('tiles16', 'assets/generated/tiles16_extruded.png');
+    this.load.image('tilesForest', 'assets/generated/forest16_extruded.png');
 
     // Sprites colocados no mapa de exemplo (tiras geradas do projeto GameMaker).
     const gm = this.cache.json.get('gmSprites');
@@ -46,8 +50,14 @@ export class PreloadScene extends Phaser.Scene {
     }
 
     for (const hair of VILLAGER_HAIR) {
-      this.load.spritesheet(`human:${hair}:idle`, `${PACK}/Characters/Human/IDLE/${hair}_idle_strip9.png`, { frameWidth: 96, frameHeight: 64 });
+      for (const anim of VILLAGER_ANIMS) {
+        const [dir, suffix] = HUMAN_ANIMS[anim];
+        this.load.spritesheet(`human:${hair}:${anim}`, `${PACK}/Characters/Human/${dir}/${hair}_${suffix}.png`, { frameWidth: 96, frameHeight: 64 });
+      }
     }
+    for (const e of ['expression_chat', 'expression_love', 'expression_alerted']) this.load.image(`ui:${e}`, `${PACK}/UI/${e}.png`);
+    const dust = this.cache.json.get('gmSprites').dust_run_strip8;
+    this.load.spritesheet('gm:dust_run_strip8', `${GM}/dust_run_strip8.png`, { frameWidth: dust.w, frameHeight: dust.h });
 
     for (const c of crops) {
       for (let i = 0; i <= 5; i++) this.load.image(`crop:${c.sprite}:${i}`, `${PACK}/Elements/Crops/${c.sprite}_0${i}.png`);
@@ -70,12 +80,16 @@ export class PreloadScene extends Phaser.Scene {
       }
     }
     // Versão grisalha dos penteados, para a Vovó Tereza e outros aldeões mais velhos.
-    for (const hair of VILLAGER_HAIR) {
-      recolorSpritesheet(this, `human:${hair}:idle`, `human:${hair}_grey:idle`, RECOLOR.grey, { frameWidth: 96, frameHeight: 64 });
-      for (const tex of [`human:${hair}:idle`, `human:${hair}_grey:idle`]) {
-        this.anims.create({ key: tex, frames: this.anims.generateFrameNumbers(tex), frameRate: 10, repeat: -1 });
+    for (const hair of GREY_HAIR) {
+      for (const anim of VILLAGER_ANIMS) recolorSpritesheet(this, `human:${hair}:${anim}`, `human:${hair}_grey:${anim}`, RECOLOR.grey, { frameWidth: 96, frameHeight: 64 });
+    }
+    for (const hair of [...VILLAGER_HAIR, ...GREY_HAIR.map(h => `${h}_grey`)]) {
+      for (const anim of VILLAGER_ANIMS) {
+        const tex = `human:${hair}:${anim}`;
+        if (!this.anims.exists(tex)) this.anims.create({ key: tex, frames: this.anims.generateFrameNumbers(tex), frameRate: HUMAN_ANIMS[anim][3], repeat: -1 });
       }
     }
+    this.anims.create({ key: 'fx:dust', frames: this.anims.generateFrameNumbers('gm:dust_run_strip8'), frameRate: 16, repeat: 0 });
     this.scene.start('Village');
   }
 }

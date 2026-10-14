@@ -1,0 +1,18 @@
+[
+  {
+    "id": "main_01",
+    "title": "Uma semente na mão",
+    "description": "Are a terra seca e plante a semente de girassol do vovô.",
+    "objective": { "event": "crop:planted", "filter": { "cropId": "sunflower" }, "count": 1 },
+    "rewards": { "gold": 0, "items": { "seed:carrot": 6 } },
+    "next": "main_02"
+  },
+  {
+    "id": "main_02",
+    "title": "Terra cansada",
+    "description": "Regue as plantas todo dia e colha a primeira safra.",
+    "objective": { "event": "crop:harvested", "count": 1 },
+    "rewards": { "gold": 200 },
+    "next": null
+  }
+]

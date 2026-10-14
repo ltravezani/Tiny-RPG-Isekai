@@ -1,0 +1,9 @@
+node_modules/
+dist/
+# Assets do Sunnyside World: a licença proíbe redistribuir o pack.
+# Gere localmente com `npm run setup:assets` a partir dos .zip.
+*.zip
+*.aseprite
+assets/sunnyside/
+assets/generated/
+maps/vale_exemplo.json

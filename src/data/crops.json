@@ -1,0 +1,13 @@
+[
+  { "id": "carrot", "name": "Cenoura", "days": 3, "seasons": ["spring"], "sprite": "carrot", "sellPrice": 35, "regrows": false, "xp": { "farming": 8 } },
+  { "id": "kale", "name": "Couve", "days": 4, "seasons": ["spring", "autumn"], "sprite": "kale", "sellPrice": 45, "regrows": false, "xp": { "farming": 9 } },
+  { "id": "potato", "name": "Batata", "days": 5, "seasons": ["spring"], "sprite": "potato", "sellPrice": 60, "regrows": false, "xp": { "farming": 10 } },
+  { "id": "wheat", "name": "Trigo", "days": 4, "seasons": ["summer", "autumn"], "sprite": "wheat", "sellPrice": 40, "regrows": true, "xp": { "farming": 8 } },
+  { "id": "cabbage", "name": "Repolho", "days": 7, "seasons": ["summer"], "sprite": "cabbage", "sellPrice": 25, "regrows": true, "xp": { "farming": 12 } },
+  { "id": "cauliflower", "name": "Couve-flor", "days": 8, "seasons": ["summer"], "sprite": "cauliflower", "sellPrice": 90, "regrows": false, "xp": { "farming": 14 } },
+  { "id": "sunflower", "name": "Girassol", "days": 6, "seasons": ["spring", "summer"], "sprite": "sunflower", "sellPrice": 80, "regrows": false, "xp": { "farming": 12 } },
+  { "id": "pumpkin", "name": "Abóbora", "days": 10, "seasons": ["autumn"], "sprite": "pumpkin", "sellPrice": 220, "regrows": false, "xp": { "farming": 20 } },
+  { "id": "beetroot", "name": "Beterraba", "days": 6, "seasons": ["autumn"], "sprite": "beetroot", "sellPrice": 110, "regrows": false, "xp": { "farming": 14 } },
+  { "id": "radish", "name": "Rabanete", "days": 5, "seasons": ["winter"], "sprite": "radish", "sellPrice": 95, "regrows": false, "xp": { "farming": 12 } },
+  { "id": "parsnip", "name": "Pastinaca", "days": 4, "seasons": ["spring"], "sprite": "parsnip", "sellPrice": 50, "regrows": false, "xp": { "farming": 9 } }
+]

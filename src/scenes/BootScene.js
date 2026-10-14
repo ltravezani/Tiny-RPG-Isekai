@@ -6,7 +6,7 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     this.load.json('gmSprites', 'assets/generated/gm/sprites.json');
-    this.load.tilemapTiledJSON('vale', 'maps/vale_exemplo.json');
+    this.load.tilemapTiledJSON('vale', 'maps/vale.json');
   }
 
   create() {

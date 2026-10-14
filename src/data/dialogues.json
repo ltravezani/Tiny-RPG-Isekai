@@ -1,0 +1,48 @@
+{
+  "tereza": {
+    "name": "Vovó Tereza",
+    "scripts": [
+      {
+        "id": "intro",
+        "when": { "questActive": "main_00" },
+        "lines": [
+          "Ora, ora... Então a deusa Maela mandou mesmo alguém. Eu sou a Tereza, a mais velha do Vale do Brotar.",
+          "Essa terra está cansada, menino. A Murcha secou tudo, e quase todo mundo foi embora.",
+          "Mas essas sementes brotando na sua mão... isso eu não via fazia muito tempo.",
+          "Tome, a enxada e o regador do meu falecido marido. Are a terra ali na fazenda e plante esse girassol.",
+          "Ah, e o quadro de missões aqui do lado volta a funcionar. Todo dia aparecem pedidos novos dos moradores."
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "plant_hint",
+        "when": { "questActive": "main_01" },
+        "lines": [
+          "Fique de frente para a terra e use a enxada (Espaço). Depois é só plantar e regar.",
+          "E não esqueça: planta sem água não cresce."
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "harvest_hint",
+        "when": { "questActive": "main_02" },
+        "lines": [
+          "Regue todo dia e durma na hora certa. A terra trabalha enquanto você descansa.",
+          "Quando a planta estiver madura, colha e ponha na caixa de vendas. O ouro vai fazer falta pra reconstruir o vale."
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "default",
+        "when": {},
+        "random": [
+          ["Já deu uma olhada no quadro de missões hoje? Cada pedido cumprido ajuda o vale a crescer."],
+          ["Você trabalha demais, menino. Até a terra descansa no inverno."],
+          ["Meu marido dizia que a semente certa no lugar certo vale mais que ouro."],
+          ["Dizem que os goblins já foram fazendeiros como nós, antes da Murcha."]
+        ],
+        "emit": "npc:talked"
+      }
+    ]
+  }
+}

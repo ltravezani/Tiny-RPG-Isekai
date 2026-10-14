@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import crops from '../data/crops.json';
 import quests from '../data/quests.json';
-import { ZOOM, DEPTH, FARM_ZONE, SPAWN_TILE, SELL_BOX_TILE, MAX_ENERGY, ENERGY_COST } from '../config.js';
+import dailies from '../data/dailies.json';
+import dialogues from '../data/dialogues.json';
+import { ZOOM, DEPTH, FARM_ZONE, SPAWN_TILE, SELL_BOX_TILE, TEREZA_TILE, QUEST_BOARD_TILE, MAX_ENERGY, ENERGY_COST } from '../config.js';
 import { events } from '../systems/EventBus.js';
 import { buildWorldGrid } from '../systems/WorldGrid.js';
 import { TimeSystem } from '../systems/TimeSystem.js';
@@ -9,8 +11,11 @@ import { FarmSystem } from '../systems/FarmSystem.js';
 import { InventorySystem } from '../systems/InventorySystem.js';
 import { QuestSystem } from '../systems/QuestSystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
+import { DialogueSystem } from '../systems/DialogueSystem.js';
 import { Player } from '../entities/Player.js';
 import { FarmPlot } from '../entities/FarmPlot.js';
+import { Villager } from '../entities/Villager.js';
+import { placeQuestBoard } from '../entities/QuestBoard.js';
 
 // Camadas acima dos personagens (nuvens) e a camada de objetos ordenada por Y junto com eles.
 const SKY_LAYERS = new Set(['cloud_shadow', 'clouds_01']);
@@ -22,7 +27,12 @@ const KEEP_IN_FARM = /crate|barrel|chest|well/;
 const inFarm = (tx, ty) => tx >= FARM_ZONE.x && ty >= FARM_ZONE.y && tx < FARM_ZONE.x + FARM_ZONE.w && ty < FARM_ZONE.y + FARM_ZONE.h;
 
 const ACTION_ANIM = { till: 'dig', plant: 'doing', water: 'water', harvest: 'doing', sell: 'doing' };
-export const ACTION_LABEL = { till: 'arar', plant: 'plantar', water: 'regar', harvest: 'colher', sell: 'vender colheitas' };
+export const ACTION_LABEL = {
+  till: 'arar', plant: 'plantar', water: 'regar', harvest: 'colher', sell: 'vender colheitas',
+  talk: 'conversar', board: 'ler o quadro de missões',
+};
+// Ferramenta necessária para cada ação (a Vovó Tereza entrega na primeira conversa).
+const TOOL_FOR = { till: ['tool:hoe', 'uma enxada'], water: ['tool:watering_can', 'um regador'] };
 
 export class VillageScene extends Phaser.Scene {
   constructor() { super('Village'); }
@@ -34,7 +44,7 @@ export class VillageScene extends Phaser.Scene {
 
     this.buildMap(mapData, gm);
     this.grid = buildWorldGrid(mapData, gm);
-    this.grid.block(SELL_BOX_TILE.x, SELL_BOX_TILE.y);
+    for (const t of [SELL_BOX_TILE, TEREZA_TILE, QUEST_BOARD_TILE]) this.grid.block(t.x, t.y);
 
     // Estado: carrega o save ou começa um jogo novo.
     const save = SaveSystem.load();
@@ -43,12 +53,16 @@ export class VillageScene extends Phaser.Scene {
     this.energy = save?.player?.energy ?? MAX_ENERGY;
     this.farm = new FarmSystem(crops, (x, y) => inFarm(x, y) && !this.grid.isBlocked(x, y), save?.farm);
     events.removeAllListeners();
-    this.quests = new QuestSystem(quests, this.inventory, save?.quests);
+    this.quests = new QuestSystem({ main: quests, dailies, crops }, this.inventory, save?.quests);
+    if (!save) this.quests.rollDailies(this.dailyState());
+    this.dialogue = new DialogueSystem(dialogues, this.quests);
     this.selectedSeed = 0;
 
     this.farmPlot = new FarmPlot(this, this.farm, this.grid.tileSize);
     this.farmPlot.refresh();
     this.addSellBox();
+    this.tereza = new Villager(this, TEREZA_TILE.x, TEREZA_TILE.y, { id: 'tereza', hair: 'longhair_grey' });
+    placeQuestBoard(this, QUEST_BOARD_TILE.x, QUEST_BOARD_TILE.y);
 
     const T = this.grid.tileSize;
     const spawn = save?.player?.pos ?? { x: SPAWN_TILE.x * T + T / 2, y: SPAWN_TILE.y * T + T / 2 };
@@ -59,21 +73,29 @@ export class VillageScene extends Phaser.Scene {
     cam.setZoom(ZOOM).setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels).startFollow(this.player, true, 0.15, 0.15);
     cam.fadeIn(600);
 
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,SPACE,Q,E,Z');
-    this.keys.SPACE.on('down', () => this.useAction());
-    this.keys.Q.on('down', () => this.cycleSeed(-1));
-    this.keys.E.on('down', () => this.cycleSeed(1));
-    this.keys.Z.on('down', () => this.sleep('bed'));
+    this.ui = this.scene.get('UI');
+    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,SPACE,ESC,Q,E,Z,ONE,TWO,THREE');
+    // Com uma janela aberta (diálogo ou quadro), as teclas vão para ela.
+    this.keys.SPACE.on('down', () => (this.ui.modal ? this.ui.advance() : this.useAction()));
+    this.keys.ESC.on('down', () => this.ui.modal && this.ui.close());
+    this.keys.Q.on('down', () => !this.ui.modal && this.cycleSeed(-1));
+    this.keys.E.on('down', () => !this.ui.modal && this.cycleSeed(1));
+    this.keys.Z.on('down', () => !this.ui.modal && this.sleep('bed'));
+    ['ONE', 'TWO', 'THREE'].forEach((k, i) => this.keys[k].on('down', () => this.rerollDaily(i)));
 
     events.on('player:passedOut', () => this.sleep('passedOut'));
     events.on('quest:completed', q => this.toast(`Missão concluída: ${q.title}`));
+    events.on('daily:completed', d => this.toast(`Diária concluída: ${d.title} (+${d.rewards.gold} de ouro)`));
+    events.on('daily:bonus', b => this.toast(b.weekly
+      ? `Sete dias seguidos! Baú semanal: ${b.rewards.gold} de ouro e sementes raras.`
+      : `Todas as diárias feitas! Bônus: ${b.rewards.gold} de ouro e sementes.`));
     events.on('crop:harvested', ({ cropId }) => {
       this.inventory.add(`crop:${cropId}`);
       this.farmPlot.refresh();
     });
 
     this.scene.launch('UI');
-    if (!save) this.time.delayedCall(800, () => this.toast('Você acordou num campo seco, com uma semente de girassol na mão.'));
+    if (!save) this.time.delayedCall(800, () => this.toast('Você acordou num campo seco, com uma semente de girassol na mão. Há uma senhora ali perto.'));
   }
 
   // Limpa as plantações e goblins decorativos da fazenda do mapa de exemplo: ela é do jogador agora.
@@ -153,7 +175,10 @@ export class VillageScene extends Phaser.Scene {
   // Ação contextual no tile à frente do jogador.
   targetAction() {
     const t = this.player.targetTile();
-    if (t.x === SELL_BOX_TILE.x && t.y === SELL_BOX_TILE.y) {
+    const is = p => t.x === p.x && t.y === p.y;
+    if (is(TEREZA_TILE)) return { tile: t, action: 'talk' };
+    if (is(QUEST_BOARD_TILE)) return { tile: t, action: 'board' };
+    if (is(SELL_BOX_TILE)) {
       return { tile: t, action: crops.some(c => this.inventory.count(`crop:${c.id}`)) ? 'sell' : null };
     }
     let action = this.farm.actionAt(t.x, t.y);
@@ -165,6 +190,13 @@ export class VillageScene extends Phaser.Scene {
     if (this.player.busy || this.sleeping) return;
     const { tile, action } = this.targetAction();
     if (!action) return;
+    if (action === 'talk') return this.talkTo('tereza');
+    if (action === 'board') return this.openBoard();
+    const tool = TOOL_FOR[action];
+    if (tool && !this.inventory.count(tool[0])) {
+      this.toast(`Você ainda não tem ${tool[1]}. Fale com a Vovó Tereza.`);
+      return;
+    }
     if (action === 'plant' && !this.farm.canPlant(this.currentSeed().id, this.clock.season)) {
       this.toast(`${this.currentSeed().name} não cresce nesta estação.`);
       return;
@@ -213,6 +245,7 @@ export class VillageScene extends Phaser.Scene {
       if (passedOut) this.inventory.addGold(-Math.floor(this.inventory.gold * 0.1));
       this.clock.nextDay();
       this.farm.onNewDay(this.clock.snapshot());
+      this.quests.rollDailies(this.dailyState());
       this.energy = passedOut ? MAX_ENERGY / 2 : MAX_ENERGY;
       this.farmPlot.refresh();
       this.save();
@@ -221,6 +254,31 @@ export class VillageScene extends Phaser.Scene {
       cam.fadeFrom(700, 0, 0, 0, true);
       this.toast(passedOut ? 'Você desmaiou de cansaço... e perdeu um pouco de ouro.' : `Dia ${this.clock.day}. Jogo salvo.`);
     });
+  }
+
+  talkTo(npcId) {
+    this.tereza.faceTowards(this.player.x);
+    const talk = this.dialogue.start(npcId);
+    this.ui.openDialog(talk.name, talk.lines, () => talk.finish());
+  }
+
+  openBoard() {
+    const first = this.quests.acceptDailies();
+    this.ui.openBoard();
+    if (first) this.toast('Diárias aceitas. Boa sorte, Semeador!');
+  }
+
+  rerollDaily(index) {
+    if (this.ui.modal !== 'board') return;
+    if (this.quests.reroll(index, this.dailyState())) this.toast('Diária trocada. Só dá para trocar uma por dia.');
+    else this.toast(this.quests.rerolled ? 'Você já trocou uma diária hoje.' : 'Essa diária não pode ser trocada.');
+  }
+
+  // Dados que o sorteio das diárias usa.
+  dailyState() {
+    const planted = [...this.farm.tiles.values()].map(t => t.cropId).filter(Boolean);
+    const owned = crops.filter(c => this.inventory.count(`seed:${c.id}`)).map(c => c.id);
+    return { villageLevel: 1, day: this.clock.day, season: this.clock.season, unlockedCrops: [...new Set([...planted, ...owned])] };
   }
 
   save() {
@@ -238,6 +296,10 @@ export class VillageScene extends Phaser.Scene {
 
   update(_, dt) {
     if (this.sleeping) return;
+    if (this.ui.modal) {
+      this.player.move({ x: 0, y: 0 }, dt);
+      return;
+    }
     this.clock.update(dt);
     const k = this.keys;
     this.player.move({

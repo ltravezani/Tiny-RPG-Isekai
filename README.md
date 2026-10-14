@@ -15,7 +15,7 @@ npm run setup:assets   # extrai o pack, gera os sprites do projeto GameMaker e o
 npm run dev            # http://localhost:5173
 ```
 
-`setup:assets` faz três coisas:
+`setup:assets` faz quatro coisas:
 
 1. Extrai `Sunnyside_World_Assets/` para `assets/sunnyside/`, com os nomes do pack intactos.
 2. Junta em tiras PNG (`assets/generated/gm/`) os ~470 sprites que só existem no projeto
@@ -23,20 +23,29 @@ npm run dev            # http://localhost:5173
    de origem e velocidade de animação.
 3. Converte a sala de exemplo do pack (a mesma da imagem de divulgação) para um mapa Tiled
    em `maps/vale_exemplo.json`, que abre no Tiled para edição.
+4. Gera o Vale do Brotar do jogo, `maps/vale.json` (160x102 tiles): o mesmo vale sem o formato de
+   ilhas (o mar vira campo e a costa de penhascos é aplainada), cercado de campos, bosques e mata
+   fechada nas bordas. O gerador é `tools/build-vale.mjs` e é determinístico.
 
 ## Controles
 
 WASD ou setas para andar, Shift para correr, Espaço para a ação no tile à frente
-(arar, plantar, regar, colher, vender na caixa), Q/E para trocar a semente, Z para dormir e salvar.
+(conversar, ler o quadro, arar, plantar, regar, colher, vender na caixa), Q/E para trocar a semente,
+Z para dormir e salvar. No quadro de missões, 1-3 troca uma diária (uma vez por dia).
 
 ## O que já existe
 
-- Vale do Brotar provisório: o mapa de exemplo do pack, com colisão de penhascos, água,
-  prédios, árvores e objetos; pontes e escadas liberam a passagem.
+- Vale do Brotar contínuo, sem ilhas, com colisão de penhascos, água, prédios, árvores e objetos;
+  pontes e escadas liberam a passagem.
+- Vovó Tereza com diálogo que muda conforme a missão; ela entrega a enxada e o regador.
+- Quadro de Missões com 3 diárias por dia (`src/data/dailies.json`): sem tipos repetidos, pelo menos
+  uma de fazenda, troca de uma por dia, bônus ao completar as 3 e baú semanal com 7 dias seguidos.
+- Troca de paleta em tempo de carga (`src/systems/Palette.js`), usada no cabelo grisalho da Tereza
+  e pronta para as variantes Murchas.
 - Rafa (corpo + cabelo + ferramentas do pack), andar, correr e animações de trabalho.
 - Fazenda na ilha noroeste: arar, semear, regar, crescer na troca de dia, colher e vender.
 - Relógio de 14 minutos reais por dia (6h às 2h), estações de 28 dias, energia, desmaio às 2h.
-- Missões orientadas a eventos (as duas primeiras do Ato 1) e salvamento em `localStorage` ao dormir.
+- Missões orientadas a eventos (o começo do Ato 1) e salvamento em `localStorage` ao dormir.
 
 ## Estrutura
 
@@ -44,10 +53,11 @@ WASD ou setas para andar, Shift para correr, Espaço para a ação no tile à fr
 src/main.js            config do Phaser
 src/config.js          zoom, área da fazenda, custos de energia
 src/scenes/            Boot, Preload, Village, UI
-src/systems/           EventBus, TimeSystem, FarmSystem, InventorySystem, QuestSystem, SaveSystem, WorldGrid
-src/entities/          Player, FarmPlot
-src/data/              crops.json, quests.json
-tools/setup-assets.mjs preparação dos assets
+src/systems/           EventBus, TimeSystem, FarmSystem, InventorySystem, QuestSystem,
+                       DialogueSystem, SaveSystem, WorldGrid, Palette
+src/entities/          Player, Villager, FarmPlot, QuestBoard
+src/data/              crops.json, quests.json, dailies.json, dialogues.json
+tools/                 setup-assets.mjs (preparação dos assets), build-vale.mjs (mapa amplo)
 assets/sunnyside/      pack original (gerado, fora do git)
 maps/                  mapas Tiled
 ```

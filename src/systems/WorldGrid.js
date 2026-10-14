@@ -18,13 +18,14 @@ export function buildWorldGrid(mapData, spriteManifest) {
   const tileAt = (l, i) => (l ? (l.data[i] & GID_MASK) - 1 : -1);
 
   const blocked = new Uint8Array(W * H);
-  const land = layer('land'), paths = layer('paths');
+  const land = layer('land'), paths = layer('paths'), ground = layer('ground');
   const blockers = BLOCKING_LAYERS.map(layer).filter(Boolean);
 
   for (let i = 0; i < W * H; i++) {
     const g = tileAt(land, i);
     if (CROSSING.has(tileAt(paths, i))) continue;
-    blocked[i] = g < 0 || CLIFF.has(g) || WATER.has(g) || blockers.some(l => l.data[i]) ? 1 : 0;
+    const noFloor = g < 0 && !(ground && ground.data[i]); // sem terra nem campo = mar
+    blocked[i] = noFloor || CLIFF.has(g) || WATER.has(g) || blockers.some(l => l.data[i]) ? 1 : 0;
   }
 
   // Objetos grandes (árvores, barris, baús, animais...) bloqueiam o tile da base.

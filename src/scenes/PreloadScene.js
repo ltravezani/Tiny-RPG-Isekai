@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import crops from '../data/crops.json';
+import { recolorSpritesheet, RECOLOR } from '../systems/Palette.js';
 
 export const PACK = 'assets/sunnyside';
 const GM = 'assets/generated/gm';
@@ -14,6 +15,8 @@ export const HUMAN_ANIMS = {
   doing: ['DOING', 'doing_strip8', 8, 16, false],
 };
 export const HUMAN_LAYERS = ['base', 'shorthair', 'tools'];
+// Penteados extras carregados só para os aldeões (animação idle).
+export const VILLAGER_HAIR = ['longhair'];
 
 export class PreloadScene extends Phaser.Scene {
   constructor() { super('Preload'); }
@@ -42,6 +45,10 @@ export class PreloadScene extends Phaser.Scene {
       }
     }
 
+    for (const hair of VILLAGER_HAIR) {
+      this.load.spritesheet(`human:${hair}:idle`, `${PACK}/Characters/Human/IDLE/${hair}_idle_strip9.png`, { frameWidth: 96, frameHeight: 64 });
+    }
+
     for (const c of crops) {
       for (let i = 0; i <= 5; i++) this.load.image(`crop:${c.sprite}:${i}`, `${PACK}/Elements/Crops/${c.sprite}_0${i}.png`);
     }
@@ -60,6 +67,13 @@ export class PreloadScene extends Phaser.Scene {
       for (const layer of HUMAN_LAYERS) {
         const tex = `human:${layer}:${key}`;
         this.anims.create({ key: tex, frames: this.anims.generateFrameNumbers(tex), frameRate: fps, repeat: loop ? -1 : 0 });
+      }
+    }
+    // Versão grisalha dos penteados, para a Vovó Tereza e outros aldeões mais velhos.
+    for (const hair of VILLAGER_HAIR) {
+      recolorSpritesheet(this, `human:${hair}:idle`, `human:${hair}_grey:idle`, RECOLOR.grey, { frameWidth: 96, frameHeight: 64 });
+      for (const tex of [`human:${hair}:idle`, `human:${hair}_grey:idle`]) {
+        this.anims.create({ key: tex, frames: this.anims.generateFrameNumbers(tex), frameRate: 10, repeat: -1 });
       }
     }
     this.scene.start('Village');

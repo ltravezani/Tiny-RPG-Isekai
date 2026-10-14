@@ -4,6 +4,7 @@
 // 2. Junta os sprites que só existem no projeto GameMaker do pack (barris, baús,
 //    poços, minérios...) em tiras PNG em assets/generated/gm/, com um manifesto.
 // 3. Converte a sala de exemplo do pack (Room1) em um mapa Tiled: maps/vale_exemplo.json.
+// 4. Gera o Vale do Brotar amplo, sem ilhas, a partir dele: maps/vale.json.
 //
 // Os assets não vão para o git (a licença proíbe redistribuir o pack); rode
 // `npm run setup:assets` depois de clonar, com os .zip na raiz do projeto.
@@ -12,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
 import { PNG } from 'pngjs';
+import { buildVale } from './build-vale.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const PACK_ZIP = path.join(ROOT, 'Sunnyside_World_ASSET_PACK_V2.1.zip');
@@ -174,3 +176,8 @@ writeJSON(MAP_OUT, {
   layers,
 });
 console.log(`maps/vale_exemplo.json: ${W}x${H} tiles, ${layers.length} camadas`);
+
+// 4. Vale amplo, sem ilhas ---------------------------------------------------
+const vale = buildVale(JSON.parse(fs.readFileSync(MAP_OUT, 'utf8')));
+writeJSON(path.join(ROOT, 'maps/vale.json'), vale);
+console.log(`maps/vale.json: ${vale.width}x${vale.height} tiles`);

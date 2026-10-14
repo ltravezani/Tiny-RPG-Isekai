@@ -1,10 +1,18 @@
 [
   {
+    "id": "main_00",
+    "title": "Uma semente na mão",
+    "description": "Fale com a Vovó Tereza, perto da fazenda.",
+    "objective": { "event": "npc:talked", "filter": { "npcId": "tereza" }, "count": 1 },
+    "rewards": { "items": { "tool:hoe": 1, "tool:watering_can": 1 } },
+    "next": "main_01"
+  },
+  {
     "id": "main_01",
     "title": "Uma semente na mão",
     "description": "Are a terra seca e plante a semente de girassol do vovô.",
     "objective": { "event": "crop:planted", "filter": { "cropId": "sunflower" }, "count": 1 },
-    "rewards": { "gold": 0, "items": { "seed:carrot": 6 } },
+    "rewards": { "items": { "seed:carrot": 6 } },
     "next": "main_02"
   },
   {

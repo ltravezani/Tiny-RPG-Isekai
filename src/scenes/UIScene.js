@@ -41,6 +41,14 @@ export class UIScene extends Phaser.Scene {
       wordWrap: { width: 520 },
     }).setOrigin(0.5, 0).setAlpha(0);
 
+    // Janela modal: diálogo de NPC ou quadro de missões.
+    this.modal = null;
+    this.modalPanel = this.makePanel().map(p => p.setDepth(10));
+    this.modalTitle = this.add.text(0, 0, '', { ...FONT, fontSize: '17px', fontStyle: 'bold', color: '#7a3b1e' }).setDepth(11);
+    this.modalText = this.add.text(0, 0, '', { ...FONT, fontSize: '16px', lineSpacing: 6 }).setDepth(11);
+    this.modalHint = this.add.text(0, 0, '', { ...FONT, fontSize: '13px', color: '#7a5a40' }).setOrigin(1, 1).setDepth(11);
+    this.setModalVisible(false);
+
     events.on('ui:toast', text => this.showToast(text), this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => events.off('ui:toast', undefined, this));
   }
@@ -59,13 +67,74 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
+  setModalVisible(visible) {
+    [...this.modalPanel, this.modalTitle, this.modalText, this.modalHint].forEach(o => o.setVisible(visible));
+  }
+
+  openDialog(name, lines, onClose) {
+    this.modal = 'dialog';
+    this.dialog = { name, lines, index: 0, shown: 0, onClose };
+    this.modalTitle.setText(name);
+    this.setModalVisible(true);
+  }
+
+  openBoard() {
+    this.modal = 'board';
+    this.modalTitle.setText('Quadro de Missões');
+    this.setModalVisible(true);
+  }
+
+  // Espaço: completa a frase que está sendo escrita, passa para a próxima ou fecha.
+  advance() {
+    if (this.modal !== 'dialog') return this.close();
+    const d = this.dialog;
+    const line = d.lines[d.index];
+    if (d.shown < line.length) { d.shown = line.length; return; }
+    if (++d.index >= d.lines.length) return this.close();
+    d.shown = 0;
+  }
+
+  close() {
+    const onClose = this.modal === 'dialog' ? this.dialog.onClose : null;
+    this.modal = null;
+    this.dialog = null;
+    this.setModalVisible(false);
+    onClose?.();
+  }
+
+  updateModal(width, height, dt) {
+    if (!this.modal) return;
+    const w = Math.min(720, width - 40);
+    const x = (width - w) / 2;
+    this.modalText.setWordWrapWidth(w - PAD * 4);
+    if (this.modal === 'dialog') {
+      const d = this.dialog;
+      const line = d.lines[d.index];
+      d.shown = Math.min(line.length, d.shown + dt * 0.05); // ~50 letras por segundo
+      this.modalText.setText(line.slice(0, Math.floor(d.shown)));
+      this.modalHint.setText(d.index < d.lines.length - 1 ? 'Espaço ▸' : 'Espaço: fechar');
+    } else {
+      const q = this.village.quests;
+      const rows = q.dailies.map((d, i) => `${d.done ? '✓' : `${i + 1}.`} ${d.title}: ${d.text}  (${d.progress}/${d.objective.count})  +${d.rewards.gold} ouro`);
+      rows.push('', `Sequência: ${q.dailyStreak} dia(s) com todas feitas. Complete as 3 para ganhar o bônus.`);
+      this.modalText.setText(rows);
+      this.modalHint.setText(q.rerolled ? 'Espaço: fechar' : '1-3: trocar uma diária (1x por dia) · Espaço: fechar');
+    }
+    const h = Math.max(150, this.modalText.height + 90);
+    const y = height - h - 40;
+    this.layoutPanel(this.modalPanel, x, y, w, h);
+    this.modalTitle.setPosition(x + PAD * 2, y + PAD * 2);
+    this.modalText.setPosition(x + PAD * 2, y + PAD * 2 + 30);
+    this.modalHint.setPosition(x + w - PAD * 2, y + h - PAD * 1.5);
+  }
+
   showToast(text) {
     this.toastText.setText(text).setAlpha(1);
     this.tweens.killTweensOf(this.toastText);
     this.tweens.add({ targets: this.toastText, alpha: 0, delay: 3200, duration: 600 });
   }
 
-  update() {
+  update(_, dt) {
     const v = this.village;
     if (!v?.clock) return;
     const { width, height } = this.scale;
@@ -87,7 +156,11 @@ export class UIScene extends Phaser.Scene {
 
     // Missão atual.
     const q = v.quests.current();
-    this.questText.setText(q ? [`★ ${q.title}`, q.description, `${q.progress}/${q.objective.count}`] : ['★ Ato 1 em construção', 'Explore o vale!']);
+    const lines = q ? [`★ ${q.title}`, q.description, `${q.progress}/${q.objective.count}`] : ['★ Ato 1 em construção', 'Explore o vale!'];
+    lines.push('', 'Diárias');
+    if (!v.quests.dailyAccepted) lines.push('Leia o quadro de missões.');
+    else for (const d of v.quests.dailies) lines.push(`${d.done ? '✓' : '·'} ${d.text} ${d.done ? '' : `${d.progress}/${d.objective.count}`}`);
+    this.questText.setText(lines);
     const qw = 280 + PAD * 2, qh = this.questText.height + PAD * 2;
     this.layoutPanel(this.questPanel, width - qw - PAD, PAD, qw, qh);
     this.questText.setPosition(width - qw, PAD * 2);
@@ -111,5 +184,6 @@ export class UIScene extends Phaser.Scene {
 
     this.hint.setPosition(width / 2, height - 8);
     this.toastText.setPosition(width / 2, height * 0.22);
+    this.updateModal(width, height, dt);
   }
 }

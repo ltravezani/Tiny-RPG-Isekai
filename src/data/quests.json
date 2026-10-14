@@ -53,9 +53,49 @@
     "rewards": {
       "gold": 200
     },
-    "next": null,
+    "next": "main_03",
     "marker": {
       "place": "farm"
+    }
+  },
+  {
+    "id": "main_03",
+    "title": "Olhos verdes na mata",
+    "description": "Vá à Guilda de Aventureiros, na vila, e fale com o Mestre Otávio.",
+    "objective": {
+      "event": "npc:talked",
+      "filter": {
+        "npcId": "otavio"
+      },
+      "count": 1
+    },
+    "rewards": {
+      "items": {
+        "tool:sword": 1
+      }
+    },
+    "next": "main_04",
+    "marker": {
+      "npc": "otavio"
+    }
+  },
+  {
+    "id": "main_04",
+    "title": "Olhos verdes na mata",
+    "description": "Derrote 3 goblins na Floresta dos Goblins, ao norte da vila.",
+    "objective": {
+      "event": "enemy:killed",
+      "filter": {
+        "type": "goblin"
+      },
+      "count": 3
+    },
+    "rewards": {
+      "gold": 300
+    },
+    "next": null,
+    "marker": {
+      "zone": "hunt_goblins"
     }
   }
 ]

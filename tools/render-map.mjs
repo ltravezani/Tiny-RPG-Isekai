@@ -1,5 +1,6 @@
 // Renderiza maps/vale.json num PNG (tiles + sprites), para revisar o mapa fora do jogo.
-// Uso: node tools/render-map.mjs saida.png [--grid]   (--grid pinta os tiles bloqueados)
+// Uso: node tools/render-map.mjs saida.png [--grid] [--map maps/outro.json]
+// (--grid pinta os tiles bloqueados)
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
@@ -7,7 +8,8 @@ import { buildWorldGrid } from '../src/systems/WorldGrid.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const [out = 'mapa.png', ...flags] = process.argv.slice(2);
-const map = JSON.parse(fs.readFileSync(path.join(ROOT, 'maps/vale.json'), 'utf8'));
+const mapArg = flags.indexOf('--map');
+const map = JSON.parse(fs.readFileSync(mapArg >= 0 ? path.resolve(flags[mapArg + 1]) : path.join(ROOT, 'maps/vale.json'), 'utf8'));
 const gm = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/generated/gm/sprites.json'), 'utf8'));
 const T = map.tilewidth;
 const W = map.width * T, H = map.height * T;

@@ -8,10 +8,15 @@ import { defineConfig } from 'vite';
 const PACK_DIRS = [
   'Characters/Human/IDLE', 'Characters/Human/WALKING', 'Characters/Human/RUN',
   'Characters/Human/DIG', 'Characters/Human/WATERING', 'Characters/Human/DOING',
+  'Characters/Human/ATTACK', 'Characters/Human/ROLL', 'Characters/Human/HURT', 'Characters/Human/DEATH',
   'Elements/Crops', 'UI/9slice_box_white',
 ];
 const PACK_UI = ['shovel', 'water', 'plant', 'basket', 'expression_chat', 'expression_love', 'expression_alerted', 'indicator', 'arrow_right', 'playercount'];
-const EXTRA_GM = ['dust_run_strip8'];
+const EXTRA_GM = [
+  'dust_run_strip8', 'spr_deco_charactershadow', 'spr_deco_coin',
+  'spr_idle', 'spr_walking', 'spr_attack', 'spr_hurt', 'spr_death',
+  'skeleton_idle', 'skeleton_walk', 'skeleton_attack', 'skeleton_hurt', 'skeleton_death',
+]; // mesma lista de src/scenes/PreloadScene.js
 
 function copyGameFiles() {
   const copy = (from, to) => {

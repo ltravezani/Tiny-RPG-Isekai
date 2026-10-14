@@ -23,12 +23,18 @@ npm run dev            # http://localhost:5173
    de origem e velocidade de animação.
 3. Converte a sala de exemplo do pack (a mesma da imagem de divulgação) para um mapa Tiled
    em `maps/vale_exemplo.json`, que abre no Tiled para edição.
-4. Gera o Vale do Brotar do jogo, `maps/vale.json` (160x102 tiles): o mesmo vale sem o formato de
-   ilhas (o mar vira campo e a costa de penhascos é aplainada), cercado de campos, bosques e mata
-   fechada nas bordas, gravetos e pedras soltos e alguns animais no pasto. O que estava cortado
-   pela borda do recorte original (casas, salas, mina, trilhos), as praias e os penhascos de costa
-   são removidos, e tiles invisíveis deixam de bloquear a passagem. O gerador é
-   `tools/build-vale.mjs` e é determinístico.
+4. Gera o mapa do jogo, `maps/vale.json` (150x110 tiles), com `tools/world/build-world.mjs`:
+   - Vila do Brotar cercada por muro de pedra, com portões nos quatro lados, praça com poço e
+     quadro de missões, Guilda de Aventureiros, Templo de Maela, taverna, ferraria, mercado e
+     casas dos aldeões. As casas são recortadas inteiras do mapa de exemplo do pack.
+   - Fora dos muros: a fazenda do Semeador (cercada, com casinha, moinho, poço, curral e um
+     terreno grande para arar), lago, estradas de terra, bosques, flores, gravetos e pedras.
+   - Áreas de caça: Floresta dos Goblins (norte), Cemitério Antigo com esqueletos (sudeste) e a
+     pedreira (sudoeste).
+   - Estradas e lagos usam um autotile aprendido do exemplo do pack (`tools/world/autotile.mjs`):
+     para cada vizinhança de tiles, usa a peça que o autor do pack usou.
+   - A camada `poi` guarda os pontos que o jogo usa (fazenda, portas das casas, áreas de caça).
+   O gerador é determinístico.
 
 Para revisar o mapa: `node tools/render-map.mjs mapa.png --grid` gera uma imagem do vale com os
 tiles bloqueados em vermelho, e `?grid` na URL do jogo mostra o mesmo por cima do jogo.
@@ -49,15 +55,19 @@ no repositório. O mesmo `dist/` compactado em .zip pode ser enviado ao itch.io 
 
 ## Controles
 
-WASD ou setas para andar, Shift para correr, Espaço para a ação no tile à frente
+WASD ou setas para andar, Shift para correr, J para atacar, K para rolar (desvia sem levar dano),
+Espaço para a ação no tile à frente
 (conversar, fazer carinho em animais, pegar gravetos e pedras, ler o quadro, arar, plantar,
 regar, colher, vender na caixa), Q/E para trocar a semente,
 Z para dormir e salvar, M para abrir o mapa. No quadro de missões, 1-3 troca uma diária (uma vez por dia).
 
 ## O que já existe
 
-- Vale do Brotar contínuo, sem ilhas, com colisão de penhascos, água, prédios, árvores e objetos;
-  pontes e escadas liberam a passagem.
+- Mapa novo com vila murada, fazenda fora dos muros e áreas de caça, com colisão de muros, cercas,
+  água, prédios, árvores e objetos.
+- Combate em tempo real: goblins e esqueletos patrulham suas áreas, perseguem o jogador, avisam
+  antes de atacar e voltam no dia seguinte. Derrota leva de volta para casa com 10% a menos de ouro.
+- Mestre Otávio, da Guilda, entrega a espada e a missão de caça; diárias de caça no quadro.
 - Vovó Tereza com diálogo que muda conforme a missão; ela entrega a enxada e o regador.
 - Bruno, Lina, Irmã Clara e Dario (`src/data/villagers.json`) passeiam pela vila nos seus horários,
   mostram um balão quando você chega perto e têm falas que mudam com a afinidade (0 a 10 corações,
@@ -87,7 +97,7 @@ src/systems/           EventBus, TimeSystem, FarmSystem, InventorySystem, QuestS
                        DialogueSystem, WeatherSystem, SaveSystem, WorldGrid, Palette
 src/entities/          Player, Villager, Animal, FarmPlot, QuestBoard
 src/data/              crops.json, quests.json, dailies.json, dialogues.json, villagers.json
-tools/                 setup-assets.mjs (preparação dos assets), build-vale.mjs (mapa amplo)
+tools/                 setup-assets.mjs (preparação dos assets), world/ (gerador do mapa), render-map.mjs
 assets/sunnyside/      pack original (gerado, fora do git)
 maps/                  mapas Tiled
 ```

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ZOOM, MAX_ENERGY } from '../config.js';
+import { MAX_HP } from '../entities/Player.js';
 import { events } from '../systems/EventBus.js';
 import { SEASON_NAMES } from '../systems/TimeSystem.js';
 import { WEATHER_NAMES } from '../systems/WeatherSystem.js';
@@ -25,6 +26,8 @@ export class UIScene extends Phaser.Scene {
     this.statusText = this.add.text(0, 0, '', FONT).setLineSpacing(4);
     this.energyBg = this.add.rectangle(0, 0, 120, 8, 0x3b2a1e).setOrigin(0, 0.5);
     this.energyBar = this.add.rectangle(0, 0, 120, 6, 0x6dbb45).setOrigin(0, 0.5);
+    this.hpBg = this.add.rectangle(0, 0, 120, 8, 0x3b2a1e).setOrigin(0, 0.5);
+    this.hpBar = this.add.rectangle(0, 0, 120, 6, 0xd9573b).setOrigin(0, 0.5);
 
     this.questPanel = this.makePanel();
     this.questText = this.add.text(0, 0, '', { ...FONT, wordWrap: { width: 260 } }).setLineSpacing(3);
@@ -33,7 +36,7 @@ export class UIScene extends Phaser.Scene {
     this.seedIcon = this.add.image(0, 0, '__DEFAULT').setScale(ZOOM);
     this.seedText = this.add.text(0, 0, '', FONT).setLineSpacing(3);
 
-    this.hint = this.add.text(0, 0, 'WASD/setas: andar · Shift: correr · Espaço: usar · Q/E: semente · Z: dormir · M: mapa', {
+    this.hint = this.add.text(0, 0, 'WASD: andar · Shift: correr · Espaço: usar · J: atacar · K: rolar · Q/E: semente · Z: dormir · M: mapa', {
       fontFamily: 'monospace', fontSize: '13px', color: '#ffffff', stroke: '#1b2a3a', strokeThickness: 4,
     }).setOrigin(0.5, 1);
 
@@ -272,15 +275,21 @@ export class UIScene extends Phaser.Scene {
     this.statusText.setText([
       `Dia ${clock.day} · ${SEASON_NAMES[clock.season]} · Ano ${clock.year}`,
       `${clock.clockText()} · ${WEATHER_NAMES[v.weather.today]}   Ouro: ${v.inventory.gold}`,
+      'Vida',
       'Energia',
     ]);
-    const sw = Math.max(250, this.statusText.width + PAD * 2), sh = this.statusText.height + PAD * 2 + 14;
+    const sw = Math.max(250, this.statusText.width + PAD * 2), sh = this.statusText.height + PAD * 2 + 6;
     this.layoutPanel(this.status, PAD, PAD, sw, sh);
     this.statusText.setPosition(PAD * 2, PAD * 2);
-    const barY = PAD * 2 + this.statusText.height - 9;
-    this.energyBg.setPosition(PAD * 2 + 72, barY).setSize(sw - 72 - PAD * 3, 10);
-    this.energyBar.setPosition(PAD * 2 + 73, barY).setSize((sw - 74 - PAD * 3) * (v.energy / MAX_ENERGY), 6);
-    this.energyBar.setFillStyle(v.energy > 30 ? 0x6dbb45 : 0xd9573b);
+    const lineH = this.statusText.height / 4, barW = sw - 74 - PAD * 3;
+    const bar = (bg, fg, row, ratio) => {
+      const y = PAD * 2 + lineH * (row + 0.5);
+      bg.setPosition(PAD * 2 + 72, y).setSize(barW + 2, 10);
+      fg.setPosition(PAD * 2 + 73, y).setSize(Math.max(0, barW * ratio), 6);
+    };
+    bar(this.hpBg, this.hpBar, 2, v.player.hp / MAX_HP);
+    bar(this.energyBg, this.energyBar, 3, v.energy / MAX_ENERGY);
+    this.energyBar.setFillStyle(v.energy > 30 ? 0x6dbb45 : 0xd9a03b);
 
     // Missão atual.
     const q = v.quests.current();

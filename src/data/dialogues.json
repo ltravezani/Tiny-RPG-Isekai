@@ -12,7 +12,7 @@
           "Essa terra está cansada, menino. A Murcha secou tudo, e quase todo mundo foi embora.",
           "Mas essas sementes brotando na sua mão... isso eu não via fazia muito tempo.",
           "Tome, a enxada e o regador do meu falecido marido. Are a terra ali na fazenda e plante esse girassol.",
-          "Ah, e o quadro de missões aqui do lado volta a funcionar. Todo dia aparecem pedidos novos dos moradores."
+          "O quadro de missões fica na praça da vila, seguindo a estrada para o leste. Todo dia aparecem pedidos novos dos moradores."
         ],
         "emit": "npc:talked"
       },
@@ -215,6 +215,91 @@
           ],
           [
             "Preço bom é preço de quem planta coisa variada. Não plante uma coisa só!"
+          ]
+        ],
+        "emit": "npc:talked"
+      }
+    ]
+  },
+  "otavio": {
+    "name": "Mestre Otávio",
+    "scripts": [
+      {
+        "id": "register",
+        "when": {
+          "questActive": "main_03"
+        },
+        "lines": [
+          "Então você é o Semeador de quem a Tereza fala. Bem-vindo à Guilda de Aventureiros, ou ao que sobrou dela.",
+          "Goblins tocados pela Murcha montaram acampamento na floresta ao norte. Estão roubando sementes da vila.",
+          "Pegue esta espada velha e mostre do que é capaz. Derrote três deles e volte inteiro. (J ataca, K rola para desviar)"
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "hunt",
+        "when": {
+          "questActive": "main_04"
+        },
+        "lines": [
+          "A floresta fica saindo pelo portão norte. Ataque com J e role com K quando eles levantarem a arma."
+        ],
+        "emit": "npc:talked"
+      },
+      {
+        "id": "default",
+        "when": {},
+        "random": [
+          [
+            "O quadro da praça também tem pedidos de caça. A guilda paga bem."
+          ],
+          [
+            "Esqueletos voltaram a andar no cemitério a sudeste. À noite eles ficam mais ousados."
+          ],
+          [
+            "Um aventureiro descansado vale por dois. Durma bem."
+          ]
+        ],
+        "emit": "npc:talked"
+      }
+    ]
+  },
+  "tome": {
+    "name": "Tomé",
+    "scripts": [
+      {
+        "id": "default",
+        "when": {},
+        "random": [
+          [
+            "Bom dia! Já foi ver o poço da praça? A água é fresquinha."
+          ],
+          [
+            "Minha avó dizia que a vila já teve cem moradores. Hoje somos tão poucos..."
+          ],
+          [
+            "Dizem que tem goblin roubando semente perto do portão norte. Cuidado lá fora!"
+          ]
+        ],
+        "emit": "npc:talked"
+      }
+    ]
+  },
+  "rosa": {
+    "name": "Dona Rosa",
+    "scripts": [
+      {
+        "id": "default",
+        "when": {},
+        "random": [
+          [
+            "Ai, meu joelho. Chuva vem aí, pode apostar."
+          ],
+          [
+            "Se plantar abóbora no outono, me traz uma? Faço um doce que você nem imagina."
+          ],
+          [
+            "O Bruno é rabugento, mas tem coração de ouro. Não conta pra ele que eu disse."
           ]
         ],
         "emit": "npc:talked"

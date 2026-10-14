@@ -4,7 +4,7 @@ import quests from '../data/quests.json';
 import dailies from '../data/dailies.json';
 import dialogues from '../data/dialogues.json';
 import villagers from '../data/villagers.json';
-import { ZOOM, DEPTH, FARM_ZONE, SPAWN_TILE, SELL_BOX_TILE, QUEST_BOARD_TILE, MAX_ENERGY, ENERGY_COST } from '../config.js';
+import { ZOOM, DEPTH, MAX_ENERGY, ENERGY_COST } from '../config.js';
 import { events } from '../systems/EventBus.js';
 import { buildWorldGrid } from '../systems/WorldGrid.js';
 import { TimeSystem } from '../systems/TimeSystem.js';
@@ -14,7 +14,8 @@ import { QuestSystem } from '../systems/QuestSystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { DialogueSystem } from '../systems/DialogueSystem.js';
 import { WeatherSystem, WEATHER_NAMES } from '../systems/WeatherSystem.js';
-import { Player } from '../entities/Player.js';
+import { Player, MAX_HP } from '../entities/Player.js';
+import { CombatSystem } from '../systems/CombatSystem.js';
 import { FarmPlot } from '../entities/FarmPlot.js';
 import { placeQuestBoard } from '../entities/QuestBoard.js';
 import { VillageLife } from './VillageLife.js';
@@ -24,11 +25,20 @@ import { buildMinimapCanvas } from '../systems/Minimap.js';
 // Camadas acima dos personagens (nuvens) e a camada de objetos ordenada por Y junto com eles.
 const SKY_LAYERS = new Set(['cloud_shadow', 'clouds_01']);
 const YSORT_OBJECTS = 'Assets_1';
-const DECO_LAYERS = ['decoration_01', 'decoration_02', 'decoration_03'];
-// Na fazenda só ficam objetos fixos; as culturas e os goblins decorativos do exemplo saem.
-const KEEP_IN_FARM = /crate|barrel|chest|well/;
 
-const inFarm = (tx, ty) => tx >= FARM_ZONE.x && ty >= FARM_ZONE.y && tx < FARM_ZONE.x + FARM_ZONE.w && ty < FARM_ZONE.y + FARM_ZONE.h;
+// Pontos de interesse do mapa (camada "poi"), em tiles: { x, y, w, h, props }.
+function readPoi(mapData) {
+  const T = mapData.tilewidth;
+  const layer = mapData.layers.find(l => l.name === 'poi');
+  return Object.fromEntries((layer?.objects ?? []).map(o => [o.name, {
+    x: o.x / T, y: o.y / T, w: o.width / T, h: o.height / T,
+    props: Object.fromEntries((o.properties ?? []).map(p => [p.name, p.value])),
+  }]));
+}
+// Tile de referência de um ponto: a porta da casa, ou o centro da área.
+const poiTile = p => (p.props.doorX !== undefined
+  ? { x: p.props.doorX, y: p.props.doorY + 1 }
+  : { x: Math.floor(p.x + p.w / 2 - (p.w > 1 ? 0 : 0.5)), y: Math.floor(p.y + p.h / 2 - (p.h > 1 ? 0 : 0.5)) });
 
 const ACTION_ANIM = { till: 'dig', plant: 'doing', water: 'water', harvest: 'doing', sell: 'doing', gather: 'doing' };
 export const ACTION_LABEL = {
@@ -45,12 +55,17 @@ export class VillageScene extends Phaser.Scene {
   create() {
     const gm = this.cache.json.get('gmSprites');
     const mapData = this.cache.tilemap.get('vale').data;
-    this.clearFarmZone(mapData, gm);
+    this.poi = readPoi(mapData);
+    const P = this.poi, zone = P.farm_zone;
+    this.sellBoxTile = poiTile(P.sell_box);
+    this.boardTile = poiTile(P.quest_board);
+    const inFarm = (tx, ty) => tx >= zone.x && ty >= zone.y && tx < zone.x + zone.w && ty < zone.y + zone.h;
 
     const mapSprites = this.buildMap(mapData, gm);
     this.grid = buildWorldGrid(mapData, gm);
-    const tereza = villagers.find(v => v.id === 'tereza').home;
-    for (const t of [SELL_BOX_TILE, tereza, QUEST_BOARD_TILE]) this.grid.block(t.x, t.y);
+    // Aldeões: a casa de cada um vem do mapa (a porta, ou o centro da área).
+    const villagerDefs = villagers.map(v => ({ ...v, home: poiTile(P[v.home]) }));
+    for (const t of [this.sellBoxTile, this.boardTile, ...villagerDefs.filter(v => !v.wander).map(v => v.home)]) this.grid.block(t.x, t.y);
 
     // Estado: carrega o save ou começa um jogo novo.
     const save = SaveSystem.load();
@@ -69,12 +84,17 @@ export class VillageScene extends Phaser.Scene {
     this.farmPlot = new FarmPlot(this, this.farm, this.grid.tileSize);
     this.farmPlot.refresh();
     this.addSellBox();
-    this.life = new VillageLife(this, this.grid, villagers, mapSprites, save?.world);
-    placeQuestBoard(this, QUEST_BOARD_TILE.x, QUEST_BOARD_TILE.y);
+    this.life = new VillageLife(this, this.grid, villagerDefs, mapSprites, save?.world);
+    placeQuestBoard(this, this.boardTile.x, this.boardTile.y);
 
     const T = this.grid.tileSize;
-    const spawn = save?.player?.pos ?? { x: SPAWN_TILE.x * T + T / 2, y: SPAWN_TILE.y * T + T / 2 };
+    const spawnTile = poiTile(P.spawn);
+    this.home = { x: spawnTile.x * T + T / 2, y: spawnTile.y * T + T / 2 };
+    const spawn = save?.player?.pos ?? this.home;
     this.player = new Player(this, spawn.x, spawn.y, this.grid);
+    this.player.hp = save?.player?.hp ?? MAX_HP;
+    const huntZones = Object.values(P).filter(p => p.props.enemy).map(p => ({ x: p.x * T, y: p.y * T, width: p.w * T, height: p.h * T, props: p.props }));
+    this.combat = new CombatSystem(this, this.grid, huntZones);
     this.cursor = this.add.graphics().setDepth(DEPTH.sky - 1);
     this.ambience = new Ambience(this);
     if (new URLSearchParams(location.search).has('grid')) this.drawGridDebug();
@@ -85,7 +105,9 @@ export class VillageScene extends Phaser.Scene {
     cam.fadeIn(600);
 
     this.ui = this.scene.get('UI');
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,SPACE,ESC,Q,E,Z,M,ONE,TWO,THREE');
+    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,SPACE,ESC,Q,E,Z,M,J,K,ONE,TWO,THREE');
+    this.keys.J.on('down', () => !this.ui.modal && this.attack());
+    this.keys.K.on('down', () => !this.ui.modal && !this.sleeping && this.player.roll());
     // Com uma janela aberta (diálogo ou quadro), as teclas vão para ela.
     this.keys.SPACE.on('down', () => (this.ui.modal ? this.ui.advance() : this.useAction()));
     this.keys.ESC.on('down', () => this.ui.modal && this.ui.close());
@@ -111,27 +133,13 @@ export class VillageScene extends Phaser.Scene {
 
     this.scene.launch('UI');
     events.on('resource:collected', ({ item }) => this.inventory.add(item));
+    events.on('enemy:killed', ({ type, gold, x, y }) => {
+      this.inventory.addGold(gold);
+      this.dropCoin(x, y, gold);
+      if (type === 'goblin' && !this.quests.completed.includes('main_04') && Math.random() < 0.3) this.toast('O goblin deixou cair um saquinho de sementes roubadas.');
+    });
+    this.events.on('player:died', () => this.time.delayedCall(1400, () => this.sleep('died')));
     if (!save) this.time.delayedCall(800, () => this.toast('Você acordou num campo seco, com uma semente de girassol na mão. Há uma senhora ali perto.'));
-  }
-
-  // Limpa as plantações e goblins decorativos da fazenda do mapa de exemplo: ela é do jogador agora.
-  clearFarmZone(mapData, gm) {
-    if (mapData.__farmCleared) return;
-    mapData.__farmCleared = true;
-    const { width: W, tilewidth: T } = mapData;
-    for (const l of mapData.layers) {
-      if (l.type === 'tilelayer' && DECO_LAYERS.includes(l.name)) {
-        l.data = l.data.map((g, i) => (inFarm(i % W, Math.floor(i / W)) ? 0 : g));
-      } else if (l.type === 'objectgroup') {
-        l.objects = l.objects.filter(o => {
-          const s = gm[o.name];
-          if (!s || KEEP_IN_FARM.test(o.name)) return true;
-          const baseY = o.y - s.oy + (s.h === 64 ? 39 : s.h) - 1;
-          const cx = o.x - s.ox + s.w / 2;
-          return !inFarm(Math.floor(cx / T), Math.floor(baseY / T));
-        });
-      }
-    }
   }
 
   buildMap(mapData, gm) {
@@ -148,6 +156,7 @@ export class VillageScene extends Phaser.Scene {
     let depth = 0;
     for (const l of mapData.layers) {
       depth++;
+      if (l.name === 'poi') continue;
       if (l.type === 'tilelayer') {
         map.createLayer(l.name, tilesets).setDepth(SKY_LAYERS.has(l.name) ? DEPTH.sky + depth : depth);
         continue;
@@ -184,7 +193,7 @@ export class VillageScene extends Phaser.Scene {
 
   addSellBox() {
     const T = this.grid.tileSize;
-    const x = SELL_BOX_TILE.x * T + T / 2, y = SELL_BOX_TILE.y * T + T;
+    const x = this.sellBoxTile.x * T + T / 2, y = this.sellBoxTile.y * T + T;
     this.add.image(x, y - 1, 'crate_base').setOrigin(0.5, 1).setDepth(DEPTH.ysort + y);
     this.add.image(x, y - 6, 'crate_top').setOrigin(0.5, 1).setDepth(DEPTH.ysort + y + 0.1);
   }
@@ -215,8 +224,8 @@ export class VillageScene extends Phaser.Scene {
     if (thing?.kind === 'villager') return { tile: t, action: 'talk', ref: thing.ref };
     if (thing?.kind === 'animal') return { tile: t, action: 'pet', ref: thing.ref };
     if (thing?.kind === 'pickup') return { tile: t, action: 'gather', ref: thing.ref };
-    if (is(QUEST_BOARD_TILE)) return { tile: t, action: 'board' };
-    if (is(SELL_BOX_TILE)) {
+    if (is(this.boardTile)) return { tile: t, action: 'board' };
+    if (is(this.sellBoxTile)) {
       return { tile: t, action: crops.some(c => this.inventory.count(`crop:${c.id}`)) ? 'sell' : null };
     }
     let action = this.farm.actionAt(t.x, t.y);
@@ -224,8 +233,34 @@ export class VillageScene extends Phaser.Scene {
     return { tile: t, action };
   }
 
+  attack() {
+    if (this.player.busy || this.sleeping || this.player.dead) return;
+    if (!this.inventory.count('tool:sword')) {
+      this.toast('Você ainda não tem uma espada. A Guilda de Aventureiros, na vila, pode ajudar.');
+      return;
+    }
+    if (this.energy < 1) {
+      this.toast('Sem energia para lutar. Durma para recuperar (Z).');
+      return;
+    }
+    this.energy -= 1;
+    this.player.act('attack');
+    this.combat.playerAttack(this.player);
+  }
+
+  // Moedas que saltam do inimigo derrotado.
+  dropCoin(x, y, gold) {
+    const c = this.add.image(x, y - 6, 'gm:spr_deco_coin').setDepth(DEPTH.sky - 2);
+    this.tweens.add({ targets: c, y: y - 22, duration: 250, yoyo: true, onComplete: () => {
+      this.tweens.add({ targets: c, x: this.player.x, y: this.player.y - 10, alpha: 0, duration: 300, onComplete: () => c.destroy() });
+    } });
+    const t = this.add.text(x, y - 34, `+${gold}`, { fontFamily: 'monospace', fontSize: '8px', color: '#ffd84a', stroke: '#1b2a3a', strokeThickness: 2 })
+      .setOrigin(0.5).setDepth(DEPTH.sky - 1).setResolution(4);
+    this.tweens.add({ targets: t, y: t.y - 10, alpha: 0, duration: 900, onComplete: () => t.destroy() });
+  }
+
   useAction() {
-    if (this.player.busy || this.sleeping) return;
+    if (this.player.busy || this.sleeping || this.player.dead) return;
     const { tile, action, ref } = this.targetAction();
     if (!action) return;
     if (action === 'talk') return this.talkTo(ref);
@@ -282,14 +317,20 @@ export class VillageScene extends Phaser.Scene {
 
   // Dormir salva e avança o dia. Desmaiar às 2h perde 10% do ouro e acorda com metade da energia.
   sleep(reason) {
-    if (this.sleeping || this.player.busy) return;
+    if (this.sleeping || (this.player.busy && reason === 'bed')) return;
     this.sleeping = true;
     this.clock.paused = true;
     const cam = this.cameras.main;
     cam.fade(700, 0, 0, 0, true, (_, progress) => {
       if (progress < 1) return;
-      const passedOut = reason === 'passedOut';
-      if (passedOut) this.inventory.addGold(-Math.floor(this.inventory.gold * 0.1));
+      // Desmaiar ou ser derrotado: perde 10% do ouro e acorda em casa (roteiro, seções 8 e 10).
+      const passedOut = reason !== 'bed';
+      if (passedOut) {
+        this.inventory.addGold(-Math.floor(this.inventory.gold * 0.1));
+        this.player.setPosition(this.home.x, this.home.y);
+      }
+      this.player.revive();
+      this.combat.onNewDay();
       this.clock.nextDay();
       this.farm.onNewDay(this.clock.snapshot());
       this.quests.rollDailies(this.dailyState());
@@ -303,7 +344,8 @@ export class VillageScene extends Phaser.Scene {
       this.sleeping = false;
       cam.fadeFrom(700, 0, 0, 0, true);
       const forecast = weather === 'rain' ? ' Está chovendo: a fazenda já amanheceu regada.' : ` Tempo: ${WEATHER_NAMES[weather].toLowerCase()}.`;
-      this.toast((passedOut ? 'Você desmaiou de cansaço... e perdeu um pouco de ouro.' : `Dia ${this.clock.day}. Jogo salvo.`) + forecast);
+      const why = { passedOut: 'Você desmaiou de cansaço... e perdeu um pouco de ouro.', died: 'Você foi derrotado e acordou em casa, sem um pouco do ouro.' };
+      this.toast((why[reason] ?? `Dia ${this.clock.day}. Jogo salvo.`) + forecast);
     });
   }
 
@@ -331,13 +373,10 @@ export class VillageScene extends Phaser.Scene {
     else this.toast(this.quests.rerolled ? 'Você já trocou uma diária hoje.' : 'Essa diária não pode ser trocada.');
   }
 
-  // Nomes de lugares no mapa (pixels do mundo).
+  // Nomes de lugares no mapa (pixels do mundo): áreas da camada "poi" que têm rótulo.
   mapPlaces() {
     const T = this.grid.tileSize;
-    return [
-      [(FARM_ZONE.x + FARM_ZONE.w / 2) * T, (FARM_ZONE.y - 1) * T, 'Fazenda'],
-      [86 * T, 50 * T, 'Vale do Brotar'],
-    ];
+    return Object.values(this.poi).filter(p => p.props.label).map(p => [(p.x + p.w / 2) * T, (p.y + 1) * T, p.props.label]);
   }
 
   // Onde fazer cada missão ativa, em pixels do mundo (para o mapa e a seta na tela).
@@ -345,9 +384,9 @@ export class VillageScene extends Phaser.Scene {
     const T = this.grid.tileSize;
     const tileCenter = t => ({ x: t.x * T + T / 2, y: t.y * T + T / 2 });
     const places = {
-      farm: tileCenter({ x: FARM_ZONE.x + Math.floor(FARM_ZONE.w / 2), y: FARM_ZONE.y + Math.floor(FARM_ZONE.h / 2) }),
-      sellBox: tileCenter(SELL_BOX_TILE),
-      board: tileCenter(QUEST_BOARD_TILE),
+      farm: tileCenter(poiTile(this.poi.farm_zone)),
+      sellBox: tileCenter(this.sellBoxTile),
+      board: tileCenter(this.boardTile),
     };
     const p = this.player;
     const nearest = list => list.reduce((best, o) => (!best || Phaser.Math.Distance.Between(o.x, o.y, p.x, p.y) < Phaser.Math.Distance.Between(best.x, best.y, p.x, p.y) ? o : best), null);
@@ -355,6 +394,8 @@ export class VillageScene extends Phaser.Scene {
       if (!marker) return null;
       if (marker.npc) { const v = this.life.villager(marker.npc); return v && { x: v.x, y: v.y }; }
       if (marker.place) return places[marker.place];
+      if (marker.zone) return tileCenter(poiTile(this.poi[marker.zone]));
+      if (marker.enemy) { const e = this.combat.nearestZone(marker.enemy, p); return e && { x: e.x, y: e.y }; }
       if (marker.nearest === 'villager') return nearest(this.life.villagers.filter(v => v.visible));
       if (marker.nearest === 'animal') return nearest(this.life.animals.map(a => a.feet));
       if (marker.nearest === 'pickup') return nearest(this.life.pickups.filter(k => k.sprite.visible).map(k => k.sprite.getCenter()));
@@ -366,6 +407,8 @@ export class VillageScene extends Phaser.Scene {
       'tile:tilled': { place: 'farm' }, 'crop:sold': { place: 'sellBox' }, 'animal:petted': { nearest: 'animal' },
       'resource:collected': { nearest: 'pickup' }, 'npc:talked': { nearest: 'villager' },
     };
+    const markerFor = d => (d.objective.filter?.npcId ? { npc: d.objective.filter.npcId }
+      : d.objective.event === 'enemy:killed' ? { enemy: d.objective.filter?.type } : DAILY_MARKER[d.objective.event]);
     const targets = [];
     const main = this.quests.current();
     const mainPos = main && resolve(main.marker);
@@ -375,8 +418,7 @@ export class VillageScene extends Phaser.Scene {
     } else {
       for (const d of this.quests.dailies) {
         if (d.done) continue;
-        const f = d.objective.filter?.npcId ? { npc: d.objective.filter.npcId } : DAILY_MARKER[d.objective.event];
-        const pos = resolve(f);
+        const pos = resolve(markerFor(d));
         if (pos) targets.push({ ...pos, kind: 'daily', label: d.title });
       }
     }
@@ -393,7 +435,7 @@ export class VillageScene extends Phaser.Scene {
   save() {
     SaveSystem.save({
       time: this.clock.snapshot(),
-      player: { ...this.inventory.snapshot(), energy: this.energy, pos: { x: this.player.x, y: this.player.y } },
+      player: { ...this.inventory.snapshot(), energy: this.energy, hp: this.player.hp, pos: { x: this.player.x, y: this.player.y } },
       farm: this.farm.snapshot(),
       quests: this.quests.snapshot(),
       social: this.social,
@@ -410,6 +452,8 @@ export class VillageScene extends Phaser.Scene {
     if (this.sleeping) return;
     const hour = Math.floor(this.clock.minutes / 60) % 24;
     this.life.update(dt, { hour, player: this.player });
+    this.player.tick(dt);
+    if (!this.ui.modal) this.combat.update(dt, this.player);
     this.ambience.update(dt, {
       minutes: this.clock.minutes % (24 * 60), weather: this.weather.today, player: this.player,
       running: !this.ui.modal && this.keys.SHIFT.isDown && this.player.anim === 'run',

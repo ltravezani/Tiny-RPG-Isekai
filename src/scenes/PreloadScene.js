@@ -13,7 +13,18 @@ export const HUMAN_ANIMS = {
   dig: ['DIG', 'dig_strip13', 13, 22, false],
   water: ['WATERING', 'watering_strip5', 5, 8, false],
   doing: ['DOING', 'doing_strip8', 8, 16, false],
+  attack: ['ATTACK', 'attack_strip10', 10, 22, false],
+  roll: ['ROLL', 'roll_strip10', 10, 26, false],
+  hurt: ['HURT', 'hurt_strip8', 8, 20, false],
+  death: ['DEATH', 'death_strip13', 13, 14, false],
 };
+// Sprites do projeto GameMaker usados pelo jogo além dos que estão no mapa (inimigos, efeitos).
+export const EXTRA_GM = [
+  'dust_run_strip8', 'spr_deco_charactershadow', 'spr_deco_coin',
+  'spr_idle', 'spr_walking', 'spr_attack', 'spr_hurt', 'spr_death',
+  'skeleton_idle', 'skeleton_walk', 'skeleton_attack', 'skeleton_hurt', 'skeleton_death',
+];
+const GM_ONCE = new Set(['spr_attack', 'spr_hurt', 'spr_death', 'skeleton_attack', 'skeleton_hurt', 'skeleton_death']);
 export const HUMAN_LAYERS = ['base', 'shorthair', 'tools'];
 // Penteados extras carregados só para os aldeões (parado e andando).
 export const VILLAGER_HAIR = ['longhair', 'spikeyhair', 'curlyhair', 'bowlhair', 'mophair'];
@@ -37,7 +48,7 @@ export class PreloadScene extends Phaser.Scene {
     // Sprites colocados no mapa de exemplo (tiras geradas do projeto GameMaker).
     const gm = this.cache.json.get('gmSprites');
     const map = this.cache.tilemap.get('vale').data;
-    const used = new Set(map.layers.filter(l => l.type === 'objectgroup').flatMap(l => l.objects.map(o => o.name)));
+    const used = new Set([...EXTRA_GM, ...map.layers.filter(l => l.type === 'objectgroup' && l.name !== 'poi').flatMap(l => l.objects.map(o => o.name))]);
     for (const name of used) {
       const s = gm[name];
       if (s) this.load.spritesheet(`gm:${name}`, `${GM}/${name}.png`, { frameWidth: s.w, frameHeight: s.h });
@@ -56,8 +67,7 @@ export class PreloadScene extends Phaser.Scene {
       }
     }
     for (const e of ['expression_chat', 'expression_love', 'expression_alerted', 'indicator', 'arrow_right', 'playercount']) this.load.image(`ui:${e}`, `${PACK}/UI/${e}.png`);
-    const dust = this.cache.json.get('gmSprites').dust_run_strip8;
-    this.load.spritesheet('gm:dust_run_strip8', `${GM}/dust_run_strip8.png`, { frameWidth: dust.w, frameHeight: dust.h });
+
 
     for (const c of crops) {
       for (let i = 0; i <= 5; i++) this.load.image(`crop:${c.sprite}:${i}`, `${PACK}/Elements/Crops/${c.sprite}_0${i}.png`);
@@ -71,7 +81,7 @@ export class PreloadScene extends Phaser.Scene {
     for (const key of this.textures.getTextureKeys()) {
       if (!key.startsWith('gm:')) continue;
       const s = gm[key.slice(3)];
-      if (s.frames > 1) this.anims.create({ key, frames: this.anims.generateFrameNumbers(key), frameRate: s.fps, repeat: -1 });
+      if (s.frames > 1) this.anims.create({ key, frames: this.anims.generateFrameNumbers(key), frameRate: s.fps, repeat: GM_ONCE.has(key.slice(3)) ? 0 : -1 });
     }
     for (const [key, [, , , fps, loop]] of Object.entries(HUMAN_ANIMS)) {
       for (const layer of HUMAN_LAYERS) {

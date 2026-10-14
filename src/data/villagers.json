@@ -1,7 +1,10 @@
 [
-  { "id": "tereza", "name": "Vovó Tereza", "hair": "longhair_grey", "home": { "x": 58, "y": 39 }, "wander": 0, "hours": [0, 24] },
-  { "id": "bruno", "name": "Bruno", "hair": "spikeyhair", "home": { "x": 72, "y": 58 }, "wander": 4, "hours": [7, 20] },
-  { "id": "lina", "name": "Lina", "hair": "curlyhair", "home": { "x": 95, "y": 64 }, "wander": 7, "hours": [6, 21] },
-  { "id": "clara", "name": "Irmã Clara", "hair": "bowlhair", "home": { "x": 62, "y": 58 }, "wander": 3, "hours": [7, 19] },
-  { "id": "dario", "name": "Dario", "hair": "mophair", "home": { "x": 110, "y": 64 }, "wander": 5, "hours": [9, 18] }
+  { "id": "tereza", "name": "Vovó Tereza", "hair": "longhair_grey", "home": "tereza", "wander": 0, "hours": [0, 24] },
+  { "id": "bruno", "name": "Bruno", "hair": "spikeyhair", "home": "forge", "wander": 3, "hours": [7, 20] },
+  { "id": "lina", "name": "Lina", "hair": "curlyhair", "home": "house_lina", "wander": 6, "hours": [6, 21] },
+  { "id": "clara", "name": "Irmã Clara", "hair": "bowlhair", "home": "temple", "wander": 3, "hours": [7, 19] },
+  { "id": "dario", "name": "Dario", "hair": "mophair", "home": "dario_spot", "wander": 3, "hours": [9, 18] },
+  { "id": "otavio", "name": "Mestre Otávio", "hair": "shorthair", "home": "guild_master", "wander": 0, "hours": [0, 24] },
+  { "id": "tome", "name": "Tomé", "hair": "bowlhair", "home": "plaza_walk", "wander": 6, "hours": [8, 19] },
+  { "id": "rosa", "name": "Dona Rosa", "hair": "longhair", "home": "house_2", "wander": 5, "hours": [7, 18] }
 ]

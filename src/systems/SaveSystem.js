@@ -1,6 +1,6 @@
 // Salva em localStorage (roteiro, seção 10). Um slot por enquanto; o formato já tem versão.
 const KEY = 'solaria:save:1';
-const VERSION = 2; // v2: ferramentas, diárias e mapa amplo
+const VERSION = 3; // v3: mapa novo (vila murada), vida e combate
 
 export const SaveSystem = {
   load() {
